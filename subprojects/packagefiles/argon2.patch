@@ -1,0 +1,1642 @@
+--- argon2_orig/arch/x86_64/lib/argon2-arch.c
++++ argon2/arch/x86_64/lib/argon2-arch.c
+@@ -4,7 +4,6 @@
+ 
+ #include "impl-select.h"
+ 
+-#include "cpu-flags.h"
+ #include "argon2-sse2.h"
+ #include "argon2-ssse3.h"
+ #include "argon2-xop.h"
+@@ -26,16 +25,14 @@
+ void argon2_get_impl_list(argon2_impl_list *list)
+ {
+     static const argon2_impl IMPLS[] = {
+-        { "x86_64",     NULL,           fill_segment_default },
+-        { "SSE2",       check_sse2,     fill_segment_sse2 },
+-        { "SSSE3",      check_ssse3,    fill_segment_ssse3 },
+-        { "XOP",        check_xop,      fill_segment_xop },
+-        { "AVX2",       check_avx2,     fill_segment_avx2 },
+-        { "AVX-512F",   check_avx512f,  fill_segment_avx512f },
++        { "x86_64",     NULL,                     fill_segment_default },
++        { "SSE2",       xmrig_ar2_check_sse2,     xmrig_ar2_fill_segment_sse2 },
++        { "SSSE3",      xmrig_ar2_check_ssse3,    xmrig_ar2_fill_segment_ssse3 },
++        { "XOP",        xmrig_ar2_check_xop,      xmrig_ar2_fill_segment_xop },
++        { "AVX2",       xmrig_ar2_check_avx2,     xmrig_ar2_fill_segment_avx2 },
++        { "AVX-512F",   xmrig_ar2_check_avx512f,  xmrig_ar2_fill_segment_avx512f },
+     };
+ 
+-    cpu_flags_get();
+-
+     list->count = sizeof(IMPLS) / sizeof(IMPLS[0]);
+     list->entries = IMPLS;
+ }
+--- argon2_orig/arch/x86_64/lib/argon2-avx2.c
++++ argon2/arch/x86_64/lib/argon2-avx2.c
+@@ -3,9 +3,11 @@
+ #ifdef HAVE_AVX2
+ #include <string.h>
+ 
+-#include <x86intrin.h>
+-
+-#include "cpu-flags.h"
++#ifdef __GNUC__
++#   include <x86intrin.h>
++#else
++#   include <intrin.h>
++#endif
+ 
+ #define r16 (_mm256_setr_epi8( \
+      2,  3,  4,  5,  6,  7,  0,  1, \
+@@ -221,8 +223,7 @@
+     fill_block(zero2_block, address_block, address_block, 0);
+ }
+ 
+-void fill_segment_avx2(const argon2_instance_t *instance,
+-                       argon2_position_t position)
++void xmrig_ar2_fill_segment_avx2(const argon2_instance_t *instance, argon2_position_t position)
+ {
+     block *ref_block = NULL, *curr_block = NULL;
+     block address_block, input_block;
+@@ -306,8 +307,7 @@
+          * lane.
+          */
+         position.index = i;
+-        ref_index = index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF,
+-                                ref_lane == position.lane);
++        ref_index = xmrig_ar2_index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF, ref_lane == position.lane);
+ 
+         /* 2 Creating a new block */
+         ref_block =
+@@ -323,21 +323,13 @@
+     }
+ }
+ 
+-int check_avx2(void)
+-{
+-    return cpu_flags_have_avx2();
+-}
+ 
+-#else
++extern int cpu_flags_has_avx2(void);
++int xmrig_ar2_check_avx2(void) { return cpu_flags_has_avx2(); }
+ 
+-void fill_segment_avx2(const argon2_instance_t *instance,
+-                       argon2_position_t position)
+-{
+-}
++#else
+ 
+-int check_avx2(void)
+-{
+-    return 0;
+-}
++void xmrig_ar2_fill_segment_avx2(const argon2_instance_t *instance, argon2_position_t position) {}
++int xmrig_ar2_check_avx2(void) { return 0; }
+ 
+ #endif
+--- argon2_orig/arch/x86_64/lib/argon2-avx2.h
++++ argon2/arch/x86_64/lib/argon2-avx2.h
+@@ -3,9 +3,7 @@
+ 
+ #include "core.h"
+ 
+-void fill_segment_avx2(const argon2_instance_t *instance,
+-                       argon2_position_t position);
+-
+-int check_avx2(void);
++void xmrig_ar2_fill_segment_avx2(const argon2_instance_t *instance, argon2_position_t position);
++int xmrig_ar2_check_avx2(void);
+ 
+ #endif // ARGON2_AVX2_H
+--- argon2_orig/arch/x86_64/lib/argon2-avx512f.c
++++ argon2/arch/x86_64/lib/argon2-avx512f.c
+@@ -4,9 +4,11 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
+-#include <x86intrin.h>
+-
+-#include "cpu-flags.h"
++#ifdef __GNUC__
++#   include <x86intrin.h>
++#else
++#   include <intrin.h>
++#endif
+ 
+ #define ror64(x, n) _mm512_ror_epi64((x), (n))
+ 
+@@ -206,8 +208,7 @@
+     fill_block(zero2_block, address_block, address_block, 0);
+ }
+ 
+-void fill_segment_avx512f(const argon2_instance_t *instance,
+-                          argon2_position_t position)
++void xmrig_ar2_fill_segment_avx512f(const argon2_instance_t *instance, argon2_position_t position)
+ {
+     block *ref_block = NULL, *curr_block = NULL;
+     block address_block, input_block;
+@@ -291,8 +292,7 @@
+          * lane.
+          */
+         position.index = i;
+-        ref_index = index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF,
+-                                ref_lane == position.lane);
++        ref_index = xmrig_ar2_index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF, ref_lane == position.lane);
+ 
+         /* 2 Creating a new block */
+         ref_block =
+@@ -308,21 +308,12 @@
+     }
+ }
+ 
+-int check_avx512f(void)
+-{
+-    return cpu_flags_have_avx512f();
+-}
++extern int cpu_flags_has_avx512f(void);
++int xmrig_ar2_check_avx512f(void) { return cpu_flags_has_avx512f(); }
+ 
+ #else
+ 
+-void fill_segment_avx512f(const argon2_instance_t *instance,
+-                          argon2_position_t position)
+-{
+-}
+-
+-int check_avx512f(void)
+-{
+-    return 0;
+-}
++void xmrig_ar2_fill_segment_avx512f(const argon2_instance_t *instance, argon2_position_t position) {}
++int xmrig_ar2_check_avx512f(void) { return 0; }
+ 
+ #endif
+--- argon2_orig/arch/x86_64/lib/argon2-avx512f.h
++++ argon2/arch/x86_64/lib/argon2-avx512f.h
+@@ -3,9 +3,7 @@
+ 
+ #include "core.h"
+ 
+-void fill_segment_avx512f(const argon2_instance_t *instance,
+-                          argon2_position_t position);
+-
+-int check_avx512f(void);
++void xmrig_ar2_fill_segment_avx512f(const argon2_instance_t *instance, argon2_position_t position);
++int xmrig_ar2_check_avx512f(void);
+ 
+ #endif // ARGON2_AVX512F_H
+--- argon2_orig/arch/x86_64/lib/argon2-sse2.c
++++ argon2/arch/x86_64/lib/argon2-sse2.c
+@@ -1,9 +1,11 @@
+ #include "argon2-sse2.h"
+ 
+ #ifdef HAVE_SSE2
+-#include <x86intrin.h>
+-
+-#include "cpu-flags.h"
++#ifdef __GNUC__
++#   include <x86intrin.h>
++#else
++#   include <intrin.h>
++#endif
+ 
+ #define ror64_16(x) \
+     _mm_shufflehi_epi16( \
+@@ -98,27 +100,17 @@
+ 
+ #include "argon2-template-128.h"
+ 
+-void fill_segment_sse2(const argon2_instance_t *instance,
+-                       argon2_position_t position)
++void xmrig_ar2_fill_segment_sse2(const argon2_instance_t *instance, argon2_position_t position)
+ {
+     fill_segment_128(instance, position);
+ }
+ 
+-int check_sse2(void)
+-{
+-    return cpu_flags_have_sse2();
+-}
++extern int cpu_flags_has_sse2(void);
++int xmrig_ar2_check_sse2(void) { return cpu_flags_has_sse2(); }
+ 
+ #else
+ 
+-void fill_segment_sse2(const argon2_instance_t *instance,
+-                       argon2_position_t position)
+-{
+-}
+-
+-int check_sse2(void)
+-{
+-    return 0;
+-}
++void xmrig_ar2_fill_segment_sse2(const argon2_instance_t *instance, argon2_position_t position) {}
++int xmrig_ar2_check_sse2(void) { return 0; }
+ 
+ #endif
+--- argon2_orig/arch/x86_64/lib/argon2-sse2.h
++++ argon2/arch/x86_64/lib/argon2-sse2.h
+@@ -3,9 +3,7 @@
+ 
+ #include "core.h"
+ 
+-void fill_segment_sse2(const argon2_instance_t *instance,
+-                       argon2_position_t position);
+-
+-int check_sse2(void);
++void xmrig_ar2_fill_segment_sse2(const argon2_instance_t *instance, argon2_position_t position);
++int xmrig_ar2_check_sse2(void);
+ 
+ #endif // ARGON2_SSE2_H
+--- argon2_orig/arch/x86_64/lib/argon2-ssse3.c
++++ argon2/arch/x86_64/lib/argon2-ssse3.c
+@@ -3,9 +3,11 @@
+ #ifdef HAVE_SSSE3
+ #include <string.h>
+ 
+-#include <x86intrin.h>
+-
+-#include "cpu-flags.h"
++#ifdef __GNUC__
++#   include <x86intrin.h>
++#else
++#   include <intrin.h>
++#endif
+ 
+ #define r16 (_mm_setr_epi8( \
+      2,  3,  4,  5,  6,  7,  0,  1, \
+@@ -110,27 +112,17 @@
+ 
+ #include "argon2-template-128.h"
+ 
+-void fill_segment_ssse3(const argon2_instance_t *instance,
+-                        argon2_position_t position)
++void xmrig_ar2_fill_segment_ssse3(const argon2_instance_t *instance, argon2_position_t position)
+ {
+     fill_segment_128(instance, position);
+ }
+ 
+-int check_ssse3(void)
+-{
+-    return cpu_flags_have_ssse3();
+-}
++extern int cpu_flags_has_ssse3(void);
++int xmrig_ar2_check_ssse3(void) { return cpu_flags_has_ssse3(); }
+ 
+ #else
+ 
+-void fill_segment_ssse3(const argon2_instance_t *instance,
+-                        argon2_position_t position)
+-{
+-}
+-
+-int check_ssse3(void)
+-{
+-    return 0;
+-}
++void xmrig_ar2_fill_segment_ssse3(const argon2_instance_t *instance, argon2_position_t position) {}
++int xmrig_ar2_check_ssse3(void) { return 0; }
+ 
+ #endif
+--- argon2_orig/arch/x86_64/lib/argon2-ssse3.h
++++ argon2/arch/x86_64/lib/argon2-ssse3.h
+@@ -3,9 +3,7 @@
+ 
+ #include "core.h"
+ 
+-void fill_segment_ssse3(const argon2_instance_t *instance,
+-                        argon2_position_t position);
+-
+-int check_ssse3(void);
++void xmrig_ar2_fill_segment_ssse3(const argon2_instance_t *instance, argon2_position_t position);
++int xmrig_ar2_check_ssse3(void);
+ 
+ #endif // ARGON2_SSSE3_H
+--- argon2_orig/arch/x86_64/lib/argon2-template-128.h
++++ argon2/arch/x86_64/lib/argon2-template-128.h
+@@ -1,6 +1,10 @@
+ #include <string.h>
+ 
+-#include <x86intrin.h>
++#ifdef __GNUC__
++#   include <x86intrin.h>
++#else
++#   include <intrin.h>
++#endif
+ 
+ #include "core.h"
+ 
+@@ -146,8 +150,7 @@
+          * lane.
+          */
+         position.index = i;
+-        ref_index = index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF,
+-                                ref_lane == position.lane);
++        ref_index = xmrig_ar2_index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF, ref_lane == position.lane);
+ 
+         /* 2 Creating a new block */
+         ref_block =
+--- argon2_orig/arch/x86_64/lib/argon2-xop.c
++++ argon2/arch/x86_64/lib/argon2-xop.c
+@@ -3,9 +3,11 @@
+ #ifdef HAVE_XOP
+ #include <string.h>
+ 
+-#include <x86intrin.h>
+-
+-#include "cpu-flags.h"
++#ifdef __GNUC__
++#   include <x86intrin.h>
++#else
++#   include <intrin.h>
++#endif
+ 
+ #define ror64(x, c) _mm_roti_epi64((x), -(c))
+ 
+@@ -98,27 +100,17 @@
+ 
+ #include "argon2-template-128.h"
+ 
+-void fill_segment_xop(const argon2_instance_t *instance,
+-                      argon2_position_t position)
++void xmrig_ar2_fill_segment_xop(const argon2_instance_t *instance, argon2_position_t position)
+ {
+     fill_segment_128(instance, position);
+ }
+ 
+-int check_xop(void)
+-{
+-    return cpu_flags_have_xop();
+-}
++extern int cpu_flags_has_xop(void);
++int xmrig_ar2_check_xop(void) { return cpu_flags_has_xop(); }
+ 
+ #else
+ 
+-void fill_segment_xop(const argon2_instance_t *instance,
+-                      argon2_position_t position)
+-{
+-}
+-
+-int check_xop(void)
+-{
+-    return 0;
+-}
++void xmrig_ar2_fill_segment_xop(const argon2_instance_t *instance, argon2_position_t position) {}
++int xmrig_ar2_check_xop(void) { return 0; }
+ 
+ #endif
+--- argon2_orig/arch/x86_64/lib/argon2-xop.h
++++ argon2/arch/x86_64/lib/argon2-xop.h
+@@ -3,9 +3,7 @@
+ 
+ #include "core.h"
+ 
+-void fill_segment_xop(const argon2_instance_t *instance,
+-                      argon2_position_t position);
+-
+-int check_xop(void);
++void xmrig_ar2_fill_segment_xop(const argon2_instance_t *instance, argon2_position_t position);
++int xmrig_ar2_check_xop(void);
+ 
+ #endif // ARGON2_XOP_H
+--- argon2_orig/CMakeLists.txt
++++ argon2/CMakeLists.txt
+@@ -1,123 +1,88 @@
+-cmake_minimum_required(VERSION 2.6)
++cmake_minimum_required(VERSION 3.10)
+ 
+-project(Argon2 C)
+-set(ARGON2_VERSION 1.0)
+-set(BINARY_INSTALL_DIR /usr/local/bin)
+-set(LIBRARY_INSTALL_DIR /usr/local/lib)
+-set(INCLUDE_INSTALL_DIR /usr/local/include)
+-set(CMAKE_C_STANDARD 90)
++project(argon2 C)
++set(CMAKE_C_STANDARD 99)
+ set(CMAKE_C_STANDARD_REQUIRED ON)
+-enable_testing()
+ 
+ include(CheckCSourceCompiles)
+-find_package(Threads REQUIRED)
+ 
+-add_library(argon2-interface INTERFACE)
+-target_include_directories(argon2-interface INTERFACE
+-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+-    $<INSTALL_INTERFACE:include>
+-)
+-
+-add_library(argon2-internal INTERFACE)
+-target_include_directories(argon2-internal INTERFACE lib lib/blake2)
+-target_link_libraries(argon2-internal INTERFACE argon2-interface)
+-
+-add_library(argon2 SHARED
++set(ARGON2_SOURCES
+     lib/argon2.c
+     lib/core.c
+     lib/encoding.c
+     lib/genkat.c
+     lib/impl-select.c
+-    lib/thread.c
+     lib/blake2/blake2.c
+-)
+-target_link_libraries(argon2
+-    PUBLIC argon2-interface ${CMAKE_THREAD_LIBS_INIT}
+-    PRIVATE argon2-internal
+-)
+-
+-set_property(TARGET argon2 PROPERTY VERSION ${Upstream_VERSION})
+-set_property(TARGET argon2 PROPERTY SOVERSION 1)
+-set_property(TARGET argon2 PROPERTY INTERFACE_ARGON2_MAJOR_VERSION 1)
+-set_property(TARGET argon2 APPEND PROPERTY
+-    COMPATIBLE_INTERFACE_STRING ARGON2_MAJOR_VERSION
+-)
++    )
++
++set(ARGON2_X86_64_ENABLED ON)
++set(ARGON2_X86_64_LIBS    argon2-sse2 argon2-ssse3 argon2-xop argon2-avx2 argon2-avx512f)
++set(ARGON2_X86_64_SOURCES arch/x86_64/lib/argon2-arch.c)
++
++if (CMAKE_C_COMPILER_ID MATCHES MSVC)
++    function(add_feature_impl FEATURE MSVC_FLAG DEF)
++        add_library(argon2-${FEATURE} STATIC arch/x86_64/lib/argon2-${FEATURE}.c)
++        target_include_directories(argon2-${FEATURE} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../)
++        target_include_directories(argon2-${FEATURE} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
++        set_target_properties(argon2-${FEATURE} PROPERTIES POSITION_INDEPENDENT_CODE True)
+ 
+-if(CMAKE_SYSTEM_PROCESSOR STREQUAL x86_64)
++        target_compile_options(argon2-${FEATURE} PRIVATE ${MSVC_FLAG})
++        target_compile_definitions(argon2-${FEATURE} PRIVATE ${DEF})
++    endfunction()
++
++    add_feature_impl(sse2    ""              HAVE_SSE2)
++    add_feature_impl(ssse3   "/arch:SSSE3"   HAVE_SSSE3)
++    add_feature_impl(xop     ""              HAVE_XOP)
++    add_feature_impl(avx2    "/arch:AVX2"    HAVE_AVX2)
++    add_feature_impl(avx512f "/arch:AVX512F" HAVE_AVX512F)
++elseif (NOT XMRIG_ARM AND NOT XMRIG_RISCV AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+     function(add_feature_impl FEATURE GCC_FLAG DEF)
+-        add_library(argon2-${FEATURE} STATIC
+-            arch/x86_64/lib/argon2-${FEATURE}.c
+-        )
+-        target_link_libraries(argon2-${FEATURE} PRIVATE argon2-internal)
+-        set_target_properties(argon2-${FEATURE}
+-            PROPERTIES POSITION_INDEPENDENT_CODE True
+-        )
++        add_library(argon2-${FEATURE} STATIC arch/x86_64/lib/argon2-${FEATURE}.c)
++        target_include_directories(argon2-${FEATURE} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../)
++        target_include_directories(argon2-${FEATURE} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
++        set_target_properties(argon2-${FEATURE} PROPERTIES POSITION_INDEPENDENT_CODE True)
+ 
+-        message("-- Detecting feature '${FEATURE}'...")
++        message("-- argon2: detecting feature '${FEATURE}'...")
+         file(READ arch/x86_64/src/test-feature-${FEATURE}.c SOURCE_CODE)
+ 
+         # try without flag:
+         check_c_source_compiles("${SOURCE_CODE}" FEATURE_${FEATURE}_NOFLAG)
+         set(HAS_FEATURE ${FEATURE_${FEATURE}_NOFLAG})
+-        if(NOT "${HAS_FEATURE}")
++        if (NOT "${HAS_FEATURE}")
+             # try with -m<feature> flag:
+             set(CMAKE_REQUIRED_FLAGS ${GCC_FLAG})
+             check_c_source_compiles("${SOURCE_CODE}" FEATURE_${FEATURE}_FLAG)
+             set(CMAKE_REQUIRED_FLAGS "")
+ 
+             set(HAS_FEATURE ${FEATURE_${FEATURE}_FLAG})
+-            if(${HAS_FEATURE})
++            if (${HAS_FEATURE})
+                 target_compile_options(argon2-${FEATURE} PRIVATE ${GCC_FLAG})
+             endif()
+         endif()
+ 
+-        if(${HAS_FEATURE})
+-            message("-- Feature '${FEATURE}' detected!")
++        if (${HAS_FEATURE})
++            message("-- argon2: feature '${FEATURE}' detected!")
+             target_compile_definitions(argon2-${FEATURE} PRIVATE ${DEF})
+         endif()
+-        target_link_libraries(argon2 PUBLIC argon2-${FEATURE})
+     endfunction()
+ 
+-    target_include_directories(argon2-internal INTERFACE arch/x86_64/lib)
+-
+     add_feature_impl(sse2    -msse2    HAVE_SSE2)
+     add_feature_impl(ssse3   -mssse3   HAVE_SSSE3)
+     add_feature_impl(xop     -mxop     HAVE_XOP)
+     add_feature_impl(avx2    -mavx2    HAVE_AVX2)
+     add_feature_impl(avx512f -mavx512f HAVE_AVX512F)
+-
+-    target_sources(argon2 PRIVATE
+-        arch/x86_64/lib/argon2-arch.c
+-        arch/x86_64/lib/cpu-flags.c
+-    )
+ else()
+-    target_sources(argon2 PRIVATE
+-        arch/generic/lib/argon2-arch.c
+-    )
++    set(ARGON2_X86_64_ENABLED OFF)
++    list(APPEND ARGON2_SOURCES arch/generic/lib/argon2-arch.c)
+ endif()
+ 
+-add_executable(argon2-exec src/run.c)
+-target_link_libraries(argon2-exec argon2 argon2-internal)
+-target_include_directories(argon2-exec PRIVATE src)
+-set_target_properties(argon2-exec PROPERTIES OUTPUT_NAME argon2)
+-
+-add_executable(argon2-genkat src/genkat.c)
+-target_include_directories(argon2-genkat PRIVATE src)
+-target_link_libraries(argon2-genkat argon2)
+-
+-add_executable(argon2-bench2 src/bench2.c)
+-target_include_directories(argon2-bench2 PRIVATE src)
+-target_link_libraries(argon2-bench2 argon2 -lrt)
+-
+-add_executable(argon2-test tests/test.c)
+-target_include_directories(argon2-test PRIVATE tests)
+-target_link_libraries(argon2-test argon2)
+-
+-add_test(test argon2-test)
+-
+-install(TARGETS argon2 DESTINATION ${LIBRARY_INSTALL_DIR})
+-install(FILES
+-    include/argon2.h
+-    DESTINATION ${INCLUDE_INSTALL_DIR}
+-)
+-install(TARGETS argon2-exec DESTINATION ${BINARY_INSTALL_DIR})
++if (ARGON2_X86_64_ENABLED)
++    set(ARGON2_LIBS ${ARGON2_X86_64_LIBS})
++    list(APPEND ARGON2_SOURCES ${ARGON2_X86_64_SOURCES})
++endif()
++
++add_library(argon2 STATIC ${ARGON2_SOURCES})
++target_link_libraries(argon2 ${ARGON2_LIBS})
++
++target_include_directories(argon2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../)
++target_include_directories(argon2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+--- argon2_orig/include/argon2.h
++++ argon2/include/argon2.h
+@@ -19,17 +19,7 @@
+ #include <limits.h>
+ 
+ /* Symbols visibility control */
+-#ifdef A2_VISCTL
+-#define ARGON2_PUBLIC __attribute__((visibility("default")))
+-#elif _MSC_VER
+-#ifdef argon2_EXPORTS
+-#define ARGON2_PUBLIC __declspec(dllexport)
+-#else
+-#define ARGON2_PUBLIC __declspec(dllimport)
+-#endif
+-#else
+ #define ARGON2_PUBLIC
+-#endif // A2_VISCTL
+ 
+ #if defined(__cplusplus)
+ extern "C" {
+@@ -318,6 +308,14 @@
+                                     const size_t saltlen, void *hash,
+                                     const size_t hashlen);
+ 
++ARGON2_PUBLIC int argon2id_hash_raw_ex(const uint32_t t_cost,
++                                       const uint32_t m_cost,
++                                       const uint32_t parallelism, const void *pwd,
++                                       const size_t pwdlen, const void *salt,
++                                       const size_t saltlen, void *hash,
++                                       const size_t hashlen,
++                                       void *memory);
++
+ /* generic function underlying the above ones */
+ ARGON2_PUBLIC int argon2_hash(const uint32_t t_cost, const uint32_t m_cost,
+                               const uint32_t parallelism, const void *pwd,
+@@ -440,7 +438,9 @@
+  * @param prefix What to print before each line; NULL is equivalent to empty
+  * string
+  */
+-ARGON2_PUBLIC void argon2_select_impl(FILE *out, const char *prefix);
++ARGON2_PUBLIC void argon2_select_impl();
++ARGON2_PUBLIC const char *argon2_get_impl_name();
++ARGON2_PUBLIC int argon2_select_impl_by_name(const char *name);
+ 
+ /* signals support for passing preallocated memory: */
+ #define ARGON2_PREALLOCATED_MEMORY
+--- argon2_orig/lib/argon2.c
++++ argon2/lib/argon2.c
+@@ -15,7 +15,7 @@
+ #include <stdlib.h>
+ #include <stdio.h>
+ 
+-#include "argon2.h"
++#include "include/argon2.h"
+ #include "encoding.h"
+ #include "core.h"
+ 
+@@ -57,7 +57,7 @@
+ int argon2_ctx_mem(argon2_context *context, argon2_type type, void *memory,
+                    size_t memory_size) {
+     /* 1. Validate all inputs */
+-    int result = validate_inputs(context);
++    int result = xmrig_ar2_validate_inputs(context);
+     uint32_t memory_blocks, segment_length;
+     argon2_instance_t instance;
+ 
+@@ -98,20 +98,20 @@
+     /* 3. Initialization: Hashing inputs, allocating memory, filling first
+      * blocks
+      */
+-    result = initialize(&instance, context);
++    result = xmrig_ar2_initialize(&instance, context);
+ 
+     if (ARGON2_OK != result) {
+         return result;
+     }
+ 
+     /* 4. Filling memory */
+-    result = fill_memory_blocks(&instance);
++    result = xmrig_ar2_fill_memory_blocks(&instance);
+ 
+     if (ARGON2_OK != result) {
+         return result;
+     }
+     /* 5. Finalization */
+-    finalize(context, &instance);
++    xmrig_ar2_finalize(context, &instance);
+ 
+     return ARGON2_OK;
+ }
+@@ -174,7 +174,7 @@
+     result = argon2_ctx(&context, type);
+ 
+     if (result != ARGON2_OK) {
+-        clear_internal_memory(out, hashlen);
++        xmrig_ar2_clear_internal_memory(out, hashlen);
+         free(out);
+         return result;
+     }
+@@ -187,13 +187,13 @@
+     /* if encoding requested, write it */
+     if (encoded && encodedlen) {
+         if (encode_string(encoded, encodedlen, &context, type) != ARGON2_OK) {
+-            clear_internal_memory(out, hashlen); /* wipe buffers if error */
+-            clear_internal_memory(encoded, encodedlen);
++            xmrig_ar2_clear_internal_memory(out, hashlen); /* wipe buffers if error */
++            xmrig_ar2_clear_internal_memory(encoded, encodedlen);
+             free(out);
+             return ARGON2_ENCODING_FAIL;
+         }
+     }
+-    clear_internal_memory(out, hashlen);
++    xmrig_ar2_clear_internal_memory(out, hashlen);
+     free(out);
+ 
+     return ARGON2_OK;
+@@ -259,6 +259,34 @@
+                        ARGON2_VERSION_NUMBER);
+ }
+ 
++int argon2id_hash_raw_ex(const uint32_t t_cost, const uint32_t m_cost,
++                         const uint32_t parallelism, const void *pwd,
++                         const size_t pwdlen, const void *salt,
++                         const size_t saltlen, void *hash, const size_t hashlen, void *memory) {
++    argon2_context context;
++
++    context.out = (uint8_t *)hash;
++    context.outlen = (uint32_t)hashlen;
++    context.pwd = CONST_CAST(uint8_t *)pwd;
++    context.pwdlen = (uint32_t)pwdlen;
++    context.salt = CONST_CAST(uint8_t *)salt;
++    context.saltlen = (uint32_t)saltlen;
++    context.secret = NULL;
++    context.secretlen = 0;
++    context.ad = NULL;
++    context.adlen = 0;
++    context.t_cost = t_cost;
++    context.m_cost = m_cost;
++    context.lanes = parallelism;
++    context.threads = parallelism;
++    context.allocate_cbk = NULL;
++    context.free_cbk = NULL;
++    context.flags = ARGON2_DEFAULT_FLAGS;
++    context.version = ARGON2_VERSION_NUMBER;
++
++    return argon2_ctx_mem(&context, Argon2_id, memory, m_cost * 1024);
++}
++
+ static int argon2_compare(const uint8_t *b1, const uint8_t *b2, size_t len) {
+     size_t i;
+     uint8_t d = 0U;
+--- argon2_orig/lib/argon2-template-64.h
++++ argon2/lib/argon2-template-64.h
+@@ -174,8 +174,7 @@
+          * lane.
+          */
+         position.index = i;
+-        ref_index = index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF,
+-                                ref_lane == position.lane);
++        ref_index = xmrig_ar2_index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF, ref_lane == position.lane);
+ 
+         /* 2 Creating a new block */
+         ref_block =
+--- argon2_orig/lib/blake2/blake2.c
++++ argon2/lib/blake2/blake2.c
+@@ -128,14 +128,14 @@
+     S->buflen = 0;
+ }
+ 
+-void blake2b_init(blake2b_state *S, size_t outlen)
++void xmrig_ar2_blake2b_init(blake2b_state *S, size_t outlen)
+ {
+     blake2b_init_state(S);
+     /* XOR initial state with param block: */
+     S->h[0] ^= (uint64_t)outlen | (UINT64_C(1) << 16) | (UINT64_C(1) << 24);
+ }
+ 
+-void blake2b_update(blake2b_state *S, const void *in, size_t inlen)
++void xmrig_ar2_blake2b_update(blake2b_state *S, const void *in, size_t inlen)
+ {
+     const uint8_t *pin = (const uint8_t *)in;
+ 
+@@ -160,7 +160,7 @@
+     S->buflen += inlen;
+ }
+ 
+-void blake2b_final(blake2b_state *S, void *out, size_t outlen)
++void xmrig_ar2_blake2b_final(blake2b_state *S, void *out, size_t outlen)
+ {
+     uint8_t buffer[BLAKE2B_OUTBYTES] = {0};
+     unsigned int i;
+@@ -174,12 +174,12 @@
+     }
+ 
+     memcpy(out, buffer, outlen);
+-    clear_internal_memory(buffer, sizeof(buffer));
+-    clear_internal_memory(S->buf, sizeof(S->buf));
+-    clear_internal_memory(S->h, sizeof(S->h));
++    xmrig_ar2_clear_internal_memory(buffer, sizeof(buffer));
++    xmrig_ar2_clear_internal_memory(S->buf, sizeof(S->buf));
++    xmrig_ar2_clear_internal_memory(S->h, sizeof(S->h));
+ }
+ 
+-void blake2b_long(void *out, size_t outlen, const void *in, size_t inlen)
++void xmrig_ar2_blake2b_long(void *out, size_t outlen, const void *in, size_t inlen)
+ {
+     uint8_t *pout = (uint8_t *)out;
+     blake2b_state blake_state;
+@@ -187,39 +187,39 @@
+ 
+     store32(outlen_bytes, (uint32_t)outlen);
+     if (outlen <= BLAKE2B_OUTBYTES) {
+-        blake2b_init(&blake_state, outlen);
+-        blake2b_update(&blake_state, outlen_bytes, sizeof(outlen_bytes));
+-        blake2b_update(&blake_state, in, inlen);
+-        blake2b_final(&blake_state, pout, outlen);
++        xmrig_ar2_blake2b_init(&blake_state, outlen);
++        xmrig_ar2_blake2b_update(&blake_state, outlen_bytes, sizeof(outlen_bytes));
++        xmrig_ar2_blake2b_update(&blake_state, in, inlen);
++        xmrig_ar2_blake2b_final(&blake_state, pout, outlen);
+     } else {
+         uint32_t toproduce;
+         uint8_t out_buffer[BLAKE2B_OUTBYTES];
+ 
+-        blake2b_init(&blake_state, BLAKE2B_OUTBYTES);
+-        blake2b_update(&blake_state, outlen_bytes, sizeof(outlen_bytes));
+-        blake2b_update(&blake_state, in, inlen);
+-        blake2b_final(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
++        xmrig_ar2_blake2b_init(&blake_state, BLAKE2B_OUTBYTES);
++        xmrig_ar2_blake2b_update(&blake_state, outlen_bytes, sizeof(outlen_bytes));
++        xmrig_ar2_blake2b_update(&blake_state, in, inlen);
++        xmrig_ar2_blake2b_final(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
+ 
+         memcpy(pout, out_buffer, BLAKE2B_OUTBYTES / 2);
+         pout += BLAKE2B_OUTBYTES / 2;
+         toproduce = (uint32_t)outlen - BLAKE2B_OUTBYTES / 2;
+ 
+         while (toproduce > BLAKE2B_OUTBYTES) {
+-            blake2b_init(&blake_state, BLAKE2B_OUTBYTES);
+-            blake2b_update(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
+-            blake2b_final(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
++            xmrig_ar2_blake2b_init(&blake_state, BLAKE2B_OUTBYTES);
++            xmrig_ar2_blake2b_update(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
++            xmrig_ar2_blake2b_final(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
+ 
+             memcpy(pout, out_buffer, BLAKE2B_OUTBYTES / 2);
+             pout += BLAKE2B_OUTBYTES / 2;
+             toproduce -= BLAKE2B_OUTBYTES / 2;
+         }
+ 
+-        blake2b_init(&blake_state, toproduce);
+-        blake2b_update(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
+-        blake2b_final(&blake_state, out_buffer, toproduce);
++        xmrig_ar2_blake2b_init(&blake_state, toproduce);
++        xmrig_ar2_blake2b_update(&blake_state, out_buffer, BLAKE2B_OUTBYTES);
++        xmrig_ar2_blake2b_final(&blake_state, out_buffer, toproduce);
+ 
+         memcpy(pout, out_buffer, toproduce);
+ 
+-        clear_internal_memory(out_buffer, sizeof(out_buffer));
++        xmrig_ar2_clear_internal_memory(out_buffer, sizeof(out_buffer));
+     }
+ }
+--- argon2_orig/lib/blake2/blake2.h
++++ argon2/lib/blake2/blake2.h
+@@ -20,11 +20,11 @@
+ } blake2b_state;
+ 
+ /* Streaming API */
+-void blake2b_init(blake2b_state *S, size_t outlen);
+-void blake2b_update(blake2b_state *S, const void *in, size_t inlen);
+-void blake2b_final(blake2b_state *S, void *out, size_t outlen);
++void xmrig_ar2_blake2b_init(blake2b_state *S, size_t outlen);
++void xmrig_ar2_blake2b_update(blake2b_state *S, const void *in, size_t inlen);
++void xmrig_ar2_blake2b_final(blake2b_state *S, void *out, size_t outlen);
+ 
+-void blake2b_long(void *out, size_t outlen, const void *in, size_t inlen);
++void xmrig_ar2_blake2b_long(void *out, size_t outlen, const void *in, size_t inlen);
+ 
+ #endif // ARGON2_BLAKE2_H
+ 
+--- argon2_orig/lib/core.c
++++ argon2/lib/core.c
+@@ -27,7 +27,6 @@
+ #include <string.h>
+ 
+ #include "core.h"
+-#include "thread.h"
+ #include "blake2/blake2.h"
+ #include "blake2/blake2-impl.h"
+ 
+@@ -78,8 +77,7 @@
+ 
+ /***************Memory functions*****************/
+ 
+-int allocate_memory(const argon2_context *context,
+-                    argon2_instance_t *instance) {
++int xmrig_ar2_allocate_memory(const argon2_context *context, argon2_instance_t *instance) {
+     size_t blocks = instance->memory_blocks;
+     size_t memory_size = blocks * ARGON2_BLOCK_SIZE;
+ 
+@@ -108,11 +106,10 @@
+     return ARGON2_OK;
+ }
+ 
+-void free_memory(const argon2_context *context,
+-                 const argon2_instance_t *instance) {
++void xmrig_ar2_free_memory(const argon2_context *context, const argon2_instance_t *instance) {
+     size_t memory_size = instance->memory_blocks * ARGON2_BLOCK_SIZE;
+ 
+-    clear_internal_memory(instance->memory, memory_size);
++    xmrig_ar2_clear_internal_memory(instance->memory, memory_size);
+ 
+     if (instance->keep_memory) {
+         /* user-supplied memory -- do not free */
+@@ -126,7 +123,7 @@
+     }
+ }
+ 
+-void NOT_OPTIMIZED secure_wipe_memory(void *v, size_t n) {
++void NOT_OPTIMIZED xmrig_ar2_secure_wipe_memory(void *v, size_t n) {
+ #if defined(_MSC_VER) && VC_GE_2005(_MSC_VER)
+     SecureZeroMemory(v, n);
+ #elif defined memset_s
+@@ -140,15 +137,15 @@
+ }
+ 
+ /* Memory clear flag defaults to true. */
+-int FLAG_clear_internal_memory = 1;
+-void clear_internal_memory(void *v, size_t n) {
++int FLAG_clear_internal_memory = 0;
++void xmrig_ar2_clear_internal_memory(void *v, size_t n) {
+     if (FLAG_clear_internal_memory && v) {
+-        secure_wipe_memory(v, n);
++        xmrig_ar2_secure_wipe_memory(v, n);
+     }
+ }
+ 
+-void finalize(const argon2_context *context, argon2_instance_t *instance) {
+-    if (context != NULL && instance != NULL) {
++void xmrig_ar2_finalize(const argon2_context *context, argon2_instance_t *instance) {
++    if (context != NULL && instance != NULL && context->out != NULL) {
+         block blockhash;
+         uint32_t l;
+ 
+@@ -165,24 +162,21 @@
+         {
+             uint8_t blockhash_bytes[ARGON2_BLOCK_SIZE];
+             store_block(blockhash_bytes, &blockhash);
+-            blake2b_long(context->out, context->outlen, blockhash_bytes,
+-                         ARGON2_BLOCK_SIZE);
++            xmrig_ar2_blake2b_long(context->out, context->outlen, blockhash_bytes, ARGON2_BLOCK_SIZE);
+             /* clear blockhash and blockhash_bytes */
+-            clear_internal_memory(blockhash.v, ARGON2_BLOCK_SIZE);
+-            clear_internal_memory(blockhash_bytes, ARGON2_BLOCK_SIZE);
++            xmrig_ar2_clear_internal_memory(blockhash.v, ARGON2_BLOCK_SIZE);
++            xmrig_ar2_clear_internal_memory(blockhash_bytes, ARGON2_BLOCK_SIZE);
+         }
+ 
+         if (instance->print_internals) {
+             print_tag(context->out, context->outlen);
+         }
+ 
+-        free_memory(context, instance);
++        xmrig_ar2_free_memory(context, instance);
+     }
+ }
+ 
+-uint32_t index_alpha(const argon2_instance_t *instance,
+-                     const argon2_position_t *position, uint32_t pseudo_rand,
+-                     int same_lane) {
++uint32_t xmrig_ar2_index_alpha(const argon2_instance_t *instance, const argon2_position_t *position, uint32_t pseudo_rand, int same_lane) {
+     /*
+      * Pass 0:
+      *      This lane : all already finished segments plus already constructed
+@@ -250,18 +244,6 @@
+     return absolute_position;
+ }
+ 
+-#ifdef _WIN32
+-static unsigned __stdcall fill_segment_thr(void *thread_data)
+-#else
+-static void *fill_segment_thr(void *thread_data)
+-#endif
+-{
+-    argon2_thread_data *my_data = thread_data;
+-    fill_segment(my_data->instance_ptr, my_data->pos);
+-    argon2_thread_exit();
+-    return 0;
+-}
+-
+ /* Single-threaded version for p=1 case */
+ static int fill_memory_blocks_st(argon2_instance_t *instance) {
+     uint32_t r, s, l;
+@@ -270,7 +252,7 @@
+         for (s = 0; s < ARGON2_SYNC_POINTS; ++s) {
+             for (l = 0; l < instance->lanes; ++l) {
+                 argon2_position_t position = { r, l, (uint8_t)s, 0 };
+-                fill_segment(instance, position);
++                xmrig_ar2_fill_segment(instance, position);
+             }
+         }
+ 
+@@ -281,108 +263,27 @@
+     return ARGON2_OK;
+ }
+ 
+-/* Multi-threaded version for p > 1 case */
+-static int fill_memory_blocks_mt(argon2_instance_t *instance) {
+-    uint32_t r, s;
+-    argon2_thread_handle_t *thread = NULL;
+-    argon2_thread_data *thr_data = NULL;
+-    int rc = ARGON2_OK;
+-
+-    /* 1. Allocating space for threads */
+-    thread = calloc(instance->lanes, sizeof(argon2_thread_handle_t));
+-    if (thread == NULL) {
+-        rc = ARGON2_MEMORY_ALLOCATION_ERROR;
+-        goto fail;
+-    }
+-
+-    thr_data = calloc(instance->lanes, sizeof(argon2_thread_data));
+-    if (thr_data == NULL) {
+-        rc = ARGON2_MEMORY_ALLOCATION_ERROR;
+-        goto fail;
+-    }
+-
+-    for (r = 0; r < instance->passes; ++r) {
+-        for (s = 0; s < ARGON2_SYNC_POINTS; ++s) {
+-            uint32_t l;
+-
+-            /* 2. Calling threads */
+-            for (l = 0; l < instance->lanes; ++l) {
+-                argon2_position_t position;
+-
+-                /* 2.1 Join a thread if limit is exceeded */
+-                if (l >= instance->threads) {
+-                    if (argon2_thread_join(thread[l - instance->threads])) {
+-                        rc = ARGON2_THREAD_FAIL;
+-                        goto fail;
+-                    }
+-                }
+-
+-                /* 2.2 Create thread */
+-                position.pass = r;
+-                position.lane = l;
+-                position.slice = (uint8_t)s;
+-                position.index = 0;
+-                thr_data[l].instance_ptr =
+-                    instance; /* preparing the thread input */
+-                memcpy(&(thr_data[l].pos), &position,
+-                       sizeof(argon2_position_t));
+-                if (argon2_thread_create(&thread[l], &fill_segment_thr,
+-                                         (void *)&thr_data[l])) {
+-                    rc = ARGON2_THREAD_FAIL;
+-                    goto fail;
+-                }
+-
+-                /* fill_segment(instance, position); */
+-                /*Non-thread equivalent of the lines above */
+-            }
+-
+-            /* 3. Joining remaining threads */
+-            for (l = instance->lanes - instance->threads; l < instance->lanes;
+-                 ++l) {
+-                if (argon2_thread_join(thread[l])) {
+-                    rc = ARGON2_THREAD_FAIL;
+-                    goto fail;
+-                }
+-            }
+-        }
+-
+-        if (instance->print_internals) {
+-            internal_kat(instance, r); /* Print all memory blocks */
+-        }
+-    }
+-
+-fail:
+-    if (thread != NULL) {
+-        free(thread);
+-    }
+-    if (thr_data != NULL) {
+-        free(thr_data);
+-    }
+-    return rc;
+-}
+-
+-int fill_memory_blocks(argon2_instance_t *instance) {
++int xmrig_ar2_fill_memory_blocks(argon2_instance_t *instance) {
+     if (instance == NULL || instance->lanes == 0) {
+         return ARGON2_INCORRECT_PARAMETER;
+     }
+ 
+-    return instance->threads == 1 ?
+-            fill_memory_blocks_st(instance) : fill_memory_blocks_mt(instance);
++    return fill_memory_blocks_st(instance);
+ }
+ 
+-int validate_inputs(const argon2_context *context) {
++int xmrig_ar2_validate_inputs(const argon2_context *context) {
+     if (NULL == context) {
+         return ARGON2_INCORRECT_PARAMETER;
+     }
+ 
+-    if (NULL == context->out) {
+-        return ARGON2_OUTPUT_PTR_NULL;
+-    }
++    //if (NULL == context->out) {
++    //    return ARGON2_OUTPUT_PTR_NULL;
++    //}
+ 
+     /* Validate output length */
+-    if (ARGON2_MIN_OUTLEN > context->outlen) {
+-        return ARGON2_OUTPUT_TOO_SHORT;
+-    }
++    //if (ARGON2_MIN_OUTLEN > context->outlen) {
++    //    return ARGON2_OUTPUT_TOO_SHORT;
++    //}
+ 
+     if (ARGON2_MAX_OUTLEN < context->outlen) {
+         return ARGON2_OUTPUT_TOO_LONG;
+@@ -497,7 +398,7 @@
+     return ARGON2_OK;
+ }
+ 
+-void fill_first_blocks(uint8_t *blockhash, const argon2_instance_t *instance) {
++void xmrig_ar2_fill_first_blocks(uint8_t *blockhash, const argon2_instance_t *instance) {
+     uint32_t l;
+     /* Make the first and second block in each lane as G(H0||0||i) or
+        G(H0||1||i) */
+@@ -506,21 +407,17 @@
+ 
+         store32(blockhash + ARGON2_PREHASH_DIGEST_LENGTH, 0);
+         store32(blockhash + ARGON2_PREHASH_DIGEST_LENGTH + 4, l);
+-        blake2b_long(blockhash_bytes, ARGON2_BLOCK_SIZE, blockhash,
+-                     ARGON2_PREHASH_SEED_LENGTH);
+-        load_block(&instance->memory[l * instance->lane_length + 0],
+-                   blockhash_bytes);
++        xmrig_ar2_blake2b_long(blockhash_bytes, ARGON2_BLOCK_SIZE, blockhash, ARGON2_PREHASH_SEED_LENGTH);
++        load_block(&instance->memory[l * instance->lane_length + 0], blockhash_bytes);
+ 
+         store32(blockhash + ARGON2_PREHASH_DIGEST_LENGTH, 1);
+-        blake2b_long(blockhash_bytes, ARGON2_BLOCK_SIZE, blockhash,
+-                     ARGON2_PREHASH_SEED_LENGTH);
+-        load_block(&instance->memory[l * instance->lane_length + 1],
+-                   blockhash_bytes);
++        xmrig_ar2_blake2b_long(blockhash_bytes, ARGON2_BLOCK_SIZE, blockhash, ARGON2_PREHASH_SEED_LENGTH);
++        load_block(&instance->memory[l * instance->lane_length + 1], blockhash_bytes);
+     }
+-    clear_internal_memory(blockhash_bytes, ARGON2_BLOCK_SIZE);
++    xmrig_ar2_clear_internal_memory(blockhash_bytes, ARGON2_BLOCK_SIZE);
+ }
+ 
+-void initial_hash(uint8_t *blockhash, argon2_context *context,
++void xmrig_ar2_initial_hash(uint8_t *blockhash, argon2_context *context,
+                   argon2_type type) {
+     blake2b_state BlakeHash;
+     uint8_t value[sizeof(uint32_t)];
+@@ -529,72 +426,70 @@
+         return;
+     }
+ 
+-    blake2b_init(&BlakeHash, ARGON2_PREHASH_DIGEST_LENGTH);
++    xmrig_ar2_blake2b_init(&BlakeHash, ARGON2_PREHASH_DIGEST_LENGTH);
+ 
+     store32(&value, context->lanes);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     store32(&value, context->outlen);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     store32(&value, context->m_cost);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     store32(&value, context->t_cost);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     store32(&value, context->version);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     store32(&value, (uint32_t)type);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     store32(&value, context->pwdlen);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     if (context->pwd != NULL) {
+-        blake2b_update(&BlakeHash, (const uint8_t *)context->pwd,
++        xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)context->pwd,
+                        context->pwdlen);
+ 
+         if (context->flags & ARGON2_FLAG_CLEAR_PASSWORD) {
+-            secure_wipe_memory(context->pwd, context->pwdlen);
++            xmrig_ar2_secure_wipe_memory(context->pwd, context->pwdlen);
+             context->pwdlen = 0;
+         }
+     }
+ 
+     store32(&value, context->saltlen);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     if (context->salt != NULL) {
+-        blake2b_update(&BlakeHash, (const uint8_t *)context->salt,
++        xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)context->salt,
+                        context->saltlen);
+     }
+ 
+     store32(&value, context->secretlen);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     if (context->secret != NULL) {
+-        blake2b_update(&BlakeHash, (const uint8_t *)context->secret,
+-                       context->secretlen);
++        xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)context->secret, context->secretlen);
+ 
+         if (context->flags & ARGON2_FLAG_CLEAR_SECRET) {
+-            secure_wipe_memory(context->secret, context->secretlen);
++            xmrig_ar2_secure_wipe_memory(context->secret, context->secretlen);
+             context->secretlen = 0;
+         }
+     }
+ 
+     store32(&value, context->adlen);
+-    blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
++    xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)&value, sizeof(value));
+ 
+     if (context->ad != NULL) {
+-        blake2b_update(&BlakeHash, (const uint8_t *)context->ad,
+-                       context->adlen);
++        xmrig_ar2_blake2b_update(&BlakeHash, (const uint8_t *)context->ad, context->adlen);
+     }
+ 
+-    blake2b_final(&BlakeHash, blockhash, ARGON2_PREHASH_DIGEST_LENGTH);
++    xmrig_ar2_blake2b_final(&BlakeHash, blockhash, ARGON2_PREHASH_DIGEST_LENGTH);
+ }
+ 
+-int initialize(argon2_instance_t *instance, argon2_context *context) {
++int xmrig_ar2_initialize(argon2_instance_t *instance, argon2_context *context) {
+     uint8_t blockhash[ARGON2_PREHASH_SEED_LENGTH];
+     int result = ARGON2_OK;
+ 
+@@ -604,7 +499,7 @@
+ 
+     /* 1. Memory allocation */
+ 
+-    result = allocate_memory(context, instance);
++    result = xmrig_ar2_allocate_memory(context, instance);
+     if (result != ARGON2_OK) {
+         return result;
+     }
+@@ -613,11 +508,9 @@
+     /* H_0 + 8 extra bytes to produce the first blocks */
+     /* uint8_t blockhash[ARGON2_PREHASH_SEED_LENGTH]; */
+     /* Hashing all inputs */
+-    initial_hash(blockhash, context, instance->type);
++    xmrig_ar2_initial_hash(blockhash, context, instance->type);
+     /* Zeroing 8 extra bytes */
+-    clear_internal_memory(blockhash + ARGON2_PREHASH_DIGEST_LENGTH,
+-                          ARGON2_PREHASH_SEED_LENGTH -
+-                              ARGON2_PREHASH_DIGEST_LENGTH);
++    xmrig_ar2_clear_internal_memory(blockhash + ARGON2_PREHASH_DIGEST_LENGTH, ARGON2_PREHASH_SEED_LENGTH - ARGON2_PREHASH_DIGEST_LENGTH);
+ 
+     if (instance->print_internals) {
+         initial_kat(blockhash, context, instance->type);
+@@ -625,9 +518,9 @@
+ 
+     /* 3. Creating first blocks, we always have at least two blocks in a slice
+      */
+-    fill_first_blocks(blockhash, instance);
++    xmrig_ar2_fill_first_blocks(blockhash, instance);
+     /* Clearing the hash */
+-    clear_internal_memory(blockhash, ARGON2_PREHASH_SEED_LENGTH);
++    xmrig_ar2_clear_internal_memory(blockhash, ARGON2_PREHASH_SEED_LENGTH);
+ 
+     return ARGON2_OK;
+ }
+--- argon2_orig/lib/core.h
++++ argon2/lib/core.h
+@@ -14,7 +14,7 @@
+ #ifndef ARGON2_CORE_H
+ #define ARGON2_CORE_H
+ 
+-#include "argon2.h"
++#include "include/argon2.h"
+ 
+ #if defined(_MSC_VER)
+ #define ALIGN(n) __declspec(align(16))
+@@ -110,8 +110,7 @@
+  * @param instance the Argon2 instance
+  * @return ARGON2_OK if memory is allocated successfully
+  */
+-int allocate_memory(const argon2_context *context,
+-                    argon2_instance_t *instance);
++int xmrig_ar2_allocate_memory(const argon2_context *context, argon2_instance_t *instance);
+ 
+ /*
+  * Frees memory at the given pointer, uses the appropriate deallocator as
+@@ -119,22 +118,21 @@
+  * @param context argon2_context which specifies the deallocator
+  * @param instance the Argon2 instance
+  */
+-void free_memory(const argon2_context *context,
+-                 const argon2_instance_t *instance);
++void xmrig_ar2_free_memory(const argon2_context *context, const argon2_instance_t *instance);
+ 
+ /* Function that securely cleans the memory. This ignores any flags set
+  * regarding clearing memory. Usually one just calls clear_internal_memory.
+  * @param mem Pointer to the memory
+  * @param s Memory size in bytes
+  */
+-void secure_wipe_memory(void *v, size_t n);
++void xmrig_ar2_secure_wipe_memory(void *v, size_t n);
+ 
+ /* Function that securely clears the memory if FLAG_clear_internal_memory is
+  * set. If the flag isn't set, this function does nothing.
+  * @param mem Pointer to the memory
+  * @param s Memory size in bytes
+  */
+-ARGON2_PUBLIC void clear_internal_memory(void *v, size_t n);
++ARGON2_PUBLIC void xmrig_ar2_clear_internal_memory(void *v, size_t n);
+ 
+ /*
+  * Computes absolute position of reference block in the lane following a skewed
+@@ -146,9 +144,7 @@
+  * If so we can reference the current segment
+  * @pre All pointers must be valid
+  */
+-uint32_t index_alpha(const argon2_instance_t *instance,
+-                     const argon2_position_t *position, uint32_t pseudo_rand,
+-                     int same_lane);
++uint32_t xmrig_ar2_index_alpha(const argon2_instance_t *instance, const argon2_position_t *position, uint32_t pseudo_rand, int same_lane);
+ 
+ /*
+  * Function that validates all inputs against predefined restrictions and return
+@@ -157,7 +153,7 @@
+  * @return ARGON2_OK if everything is all right, otherwise one of error codes
+  * (all defined in <argon2.h>
+  */
+-int validate_inputs(const argon2_context *context);
++int xmrig_ar2_validate_inputs(const argon2_context *context);
+ 
+ /*
+  * Hashes all the inputs into @a blockhash[PREHASH_DIGEST_LENGTH], clears
+@@ -169,8 +165,7 @@
+  * @pre    @a blockhash must have at least @a PREHASH_DIGEST_LENGTH bytes
+  * allocated
+  */
+-void initial_hash(uint8_t *blockhash, argon2_context *context,
+-                  argon2_type type);
++void xmrig_ar2_initial_hash(uint8_t *blockhash, argon2_context *context, argon2_type type);
+ 
+ /*
+  * Function creates first 2 blocks per lane
+@@ -178,7 +173,7 @@
+  * @param blockhash Pointer to the pre-hashing digest
+  * @pre blockhash must point to @a PREHASH_SEED_LENGTH allocated values
+  */
+-void fill_first_blocks(uint8_t *blockhash, const argon2_instance_t *instance);
++void xmrig_ar2_fill_first_blocks(uint8_t *blockhash, const argon2_instance_t *instance);
+ 
+ /*
+  * Function allocates memory, hashes the inputs with Blake,  and creates first
+@@ -190,7 +185,7 @@
+  * @return Zero if successful, -1 if memory failed to allocate. @context->state
+  * will be modified if successful.
+  */
+-int initialize(argon2_instance_t *instance, argon2_context *context);
++int xmrig_ar2_initialize(argon2_instance_t *instance, argon2_context *context);
+ 
+ /*
+  * XORing the last block of each lane, hashing it, making the tag. Deallocates
+@@ -203,7 +198,7 @@
+  * @pre if context->free_cbk is not NULL, it should point to a function that
+  * deallocates memory
+  */
+-void finalize(const argon2_context *context, argon2_instance_t *instance);
++void xmrig_ar2_finalize(const argon2_context *context, argon2_instance_t *instance);
+ 
+ /*
+  * Function that fills the segment using previous segments also from other
+@@ -212,8 +207,7 @@
+  * @param position Current position
+  * @pre all block pointers must be valid
+  */
+-void fill_segment(const argon2_instance_t *instance,
+-                  argon2_position_t position);
++void xmrig_ar2_fill_segment(const argon2_instance_t *instance, argon2_position_t position);
+ 
+ /*
+  * Function that fills the entire memory t_cost times based on the first two
+@@ -221,6 +215,6 @@
+  * @param instance Pointer to the current instance
+  * @return ARGON2_OK if successful, @context->state
+  */
+-int fill_memory_blocks(argon2_instance_t *instance);
++int xmrig_ar2_fill_memory_blocks(argon2_instance_t *instance);
+ 
+ #endif
+--- argon2_orig/lib/encoding.c
++++ argon2/lib/encoding.c
+@@ -323,7 +323,7 @@
+     ctx->flags = ARGON2_DEFAULT_FLAGS;
+ 
+     /* On return, must have valid context */
+-    validation_result = validate_inputs(ctx);
++    validation_result = xmrig_ar2_validate_inputs(ctx);
+     if (validation_result != ARGON2_OK) {
+         return validation_result;
+     }
+@@ -371,7 +371,7 @@
+     } while ((void)0, 0)
+ 
+     const char* type_string = argon2_type2string(type, 0);
+-    int validation_result = validate_inputs(ctx);
++    int validation_result = xmrig_ar2_validate_inputs(ctx);
+ 
+     if (!type_string) {
+         return ARGON2_ENCODING_FAIL;
+--- argon2_orig/lib/encoding.h
++++ argon2/lib/encoding.h
+@@ -1,6 +1,6 @@
+ #ifndef ENCODING_H
+ #define ENCODING_H
+-#include "argon2.h"
++#include "include/argon2.h"
+ 
+ #define ARGON2_MAX_DECODED_LANES UINT32_C(255)
+ #define ARGON2_MIN_DECODED_SALT_LEN UINT32_C(8)
+--- argon2_orig/lib/impl-select.c
++++ argon2/lib/impl-select.c
+@@ -2,119 +2,116 @@
+ #include <string.h>
+ 
+ #include "impl-select.h"
++#include "include/argon2.h"
+ 
+-#include "argon2.h"
+ 
+-#define log_maybe(file, ...) \
+-    do { \
+-        if (file) { \
+-            fprintf(file, __VA_ARGS__); \
+-        } \
+-    } while((void)0, 0)
++extern uint64_t uv_hrtime(void);
+ 
+-#define BENCH_SAMPLES 512
++
++#define BENCH_SAMPLES 1024U
+ #define BENCH_MEM_BLOCKS 512
+ 
+-static argon2_impl selected_argon_impl = {
+-    "(default)", NULL, fill_segment_default
+-};
++
++#ifdef _MSC_VER
++#   define strcasecmp  _stricmp
++#endif
++
++
++static argon2_impl selected_argon_impl = { "default", NULL, fill_segment_default };
++
+ 
+ /* the benchmark routine is not thread-safe, so we can use a global var here: */
+ static block memory[BENCH_MEM_BLOCKS];
+ 
+-static uint64_t benchmark_impl(const argon2_impl *impl) {
+-    clock_t time;
+-    unsigned int i;
+-    uint64_t bench;
+-    argon2_instance_t instance;
+-    argon2_position_t pos;
+ 
++static uint64_t benchmark_impl(const argon2_impl *impl) {
+     memset(memory, 0, sizeof(memory));
+ 
+-    instance.version = ARGON2_VERSION_NUMBER;
+-    instance.memory = memory;
+-    instance.passes = 1;
+-    instance.memory_blocks = BENCH_MEM_BLOCKS;
++    argon2_instance_t instance;
++    instance.version        = ARGON2_VERSION_NUMBER;
++    instance.memory         = memory;
++    instance.passes         = 1;
++    instance.memory_blocks  = BENCH_MEM_BLOCKS;
+     instance.segment_length = BENCH_MEM_BLOCKS / ARGON2_SYNC_POINTS;
+-    instance.lane_length = instance.segment_length * ARGON2_SYNC_POINTS;
+-    instance.lanes = 1;
+-    instance.threads = 1;
+-    instance.type = Argon2_i;
+-
+-    pos.lane = 0;
+-    pos.pass = 0;
+-    pos.slice = 0;
+-    pos.index = 0;
++    instance.lane_length    = instance.segment_length * ARGON2_SYNC_POINTS;
++    instance.lanes          = 1;
++    instance.threads        = 1;
++    instance.type           = Argon2_id;
++
++    argon2_position_t pos;
++    pos.lane    = 0;
++    pos.pass    = 0;
++    pos.slice   = 0;
++    pos.index   = 0;
+ 
+     /* warm-up cache: */
+     impl->fill_segment(&instance, pos);
+ 
+     /* OK, now measure: */
+-    bench = 0;
+-    time = clock();
+-    for (i = 0; i < BENCH_SAMPLES; i++) {
++    const uint64_t time = uv_hrtime();
++
++    for (uint32_t i = 0; i < BENCH_SAMPLES; i++) {
+         impl->fill_segment(&instance, pos);
+     }
+-    time = clock() - time;
+-    bench = (uint64_t)time;
+-    return bench;
++
++    return uv_hrtime() - time;
+ }
+ 
+-static void select_impl(FILE *out, const char *prefix)
++
++void argon2_select_impl()
+ {
+     argon2_impl_list impls;
+-    unsigned int i;
+     const argon2_impl *best_impl = NULL;
+     uint64_t best_bench = UINT_MAX;
+ 
+-    log_maybe(out, "%sSelecting best fill_segment implementation...\n", prefix);
+-
+     argon2_get_impl_list(&impls);
+ 
+-    for (i = 0; i < impls.count; i++) {
++    for (uint32_t i = 0; i < impls.count; i++) {
+         const argon2_impl *impl = &impls.entries[i];
+-        uint64_t bench;
+ 
+-        log_maybe(out, "%s%s: Checking availability... ", prefix, impl->name);
+         if (impl->check != NULL && !impl->check()) {
+-            log_maybe(out, "FAILED!\n");
+             continue;
+         }
+-        log_maybe(out, "OK!\n");
+-
+-        log_maybe(out, "%s%s: Benchmarking...\n", prefix, impl->name);
+-        bench = benchmark_impl(impl);
+-        log_maybe(out, "%s%s: Benchmark result: %llu\n", prefix, impl->name,
+-                (unsigned long long)bench);
+ 
++        const uint64_t bench = benchmark_impl(impl);
+         if (bench < best_bench) {
+             best_bench = bench;
+-            best_impl = impl;
++            best_impl  = impl;
+         }
+     }
+ 
+     if (best_impl != NULL) {
+-        log_maybe(out,
+-                  "%sBest implementation: '%s' (bench %llu)\n", prefix,
+-                  best_impl->name, (unsigned long long)best_bench);
+-
+         selected_argon_impl = *best_impl;
+-    } else {
+-        log_maybe(out,
+-                  "%sNo optimized implementation available, using default!\n",
+-                  prefix);
+     }
+ }
+ 
+-void fill_segment(const argon2_instance_t *instance, argon2_position_t position)
++
++void xmrig_ar2_fill_segment(const argon2_instance_t *instance, argon2_position_t position)
+ {
+     selected_argon_impl.fill_segment(instance, position);
+ }
+ 
+-void argon2_select_impl(FILE *out, const char *prefix)
++
++const char *argon2_get_impl_name()
++{
++    return selected_argon_impl.name;
++}
++
++
++int argon2_select_impl_by_name(const char *name)
+ {
+-    if (prefix == NULL) {
+-        prefix = "";
++    argon2_impl_list impls;
++    argon2_get_impl_list(&impls);
++
++    for (uint32_t i = 0; i < impls.count; i++) {
++        const argon2_impl *impl = &impls.entries[i];
++
++        if (strcasecmp(impl->name, name) == 0) {
++            selected_argon_impl = *impl;
++
++            return 1;
++        }
+     }
+-    select_impl(out, prefix);
++
++    return 0;
+ }
+Nur in argon2: .meson-subproject-wrap-hash.txt.
+--- argon2_orig/src/bench2.c
++++ argon2/src/bench2.c
+@@ -4,7 +4,7 @@
+ #include <stdio.h>
+ #include <math.h>
+ 
+-#include "argon2.h"
++#include "include/argon2.h"
+ 
+ #include "timing.h"
+ 
+--- argon2_orig/src/genkat.c
++++ argon2/src/genkat.c
+@@ -2,7 +2,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#include "argon2.h"
++#include "include/argon2.h"
+ 
+ static void fatal(const char *error) {
+     fprintf(stderr, "Error: %s\n", error);
+--- argon2_orig/src/run.c
++++ argon2/src/run.c
+@@ -20,7 +20,7 @@
+ #include <string.h>
+ #include <time.h>
+ 
+-#include "argon2.h"
++#include "include/argon2.h"
+ #include "core.h"
+ 
+ #define T_COST_DEF 3
+--- argon2_orig/tests/test.c
++++ argon2/tests/test.c
+@@ -6,7 +6,7 @@
+ #include <time.h>
+ #include <assert.h>
+ 
+-#include "argon2.h"
++#include "include/argon2.h"
+ 
+ #define OUT_LEN 32
+ #define ENCODED_LEN 108

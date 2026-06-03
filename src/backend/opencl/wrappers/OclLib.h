@@ -23,7 +23,7 @@
 #include <vector>
 
 
-#include "3rdparty/cl.h"
+#include <OpenCL/cl.h>
 #include "base/tools/String.h"
 
 #ifndef CL_DEVICE_TOPOLOGY_AMD

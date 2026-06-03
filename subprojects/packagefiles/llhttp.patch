@@ -1,0 +1,11 @@
+--- a/include/llhttp.h
++++ b/include/llhttp.h
+@@ -552,8 +552,6 @@
+ 
+ #if defined(__wasm__)
+ #define LLHTTP_EXPORT __attribute__((visibility("default")))
+-#elif defined(_WIN32)
+-#define LLHTTP_EXPORT __declspec(dllexport)
+ #else
+ #define LLHTTP_EXPORT
+ #endif

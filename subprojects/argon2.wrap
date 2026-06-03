@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/WOnder93/argon2.git
+revision = 49cbc232ba0b9a67efa4199a9ea072f430a3f1b7
+depth = 1
+diff_files = argon2.patch
+patch_directory = argon2

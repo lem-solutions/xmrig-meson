@@ -26,7 +26,7 @@
 #define XMRIG_OCLERROR_H
 
 
-#include "3rdparty/cl.h"
+#include <OpenCL/cl.h>
 
 
 #define OCL_ERR_SUCCESS    (0)

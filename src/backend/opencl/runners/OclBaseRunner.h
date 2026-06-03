@@ -29,7 +29,7 @@
 #include <string>
 
 
-#include "3rdparty/cl.h"
+#include <OpenCL/cl.h>
 #include "backend/opencl/interfaces/IOclRunner.h"
 #include "base/crypto/Algorithm.h"
 

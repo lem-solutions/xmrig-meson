@@ -6,3 +6,8 @@ scripts/deps
 /src/backend/opencl/cl/cn/cryptonight_gen.cl
 .vscode
 /.qtcreator
+
+/subprojects/*
+!/subprojects/packagefiles
+!/subprojects/*.wrap
+!/subprojects/ethash

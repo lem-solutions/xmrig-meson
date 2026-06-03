@@ -1,0 +1,40 @@
+option('hwloc', type: 'boolean', value: true, description: 'hwloc support')
+option('cn-lite', type: 'boolean', value: true, description: 'CryptoNight-Lite algorithms family')
+option('cn-heavy', type: 'boolean', value: true, description: 'CryptoNight-Heavy algorithms family')
+option('cn-pico', type: 'boolean', value: true, description: 'CryptoNight-Pico algorithm')
+option('cn-femto', type: 'boolean', value: true, description: 'CryptoNight-UPX2 algorithm')
+option('randomx', type: 'boolean', value: true, description: 'RandomX algorithms family')
+option('argon2', type: 'boolean', value: true, description: 'Argon2 algorithms family')
+option('kawpow', type: 'boolean', value: true, description: 'KawPow algorithms family')
+option('ghostrider', type: 'boolean', value: true, description: 'GhostRider algorithm')
+option('http', type: 'boolean', value: true, description: 'HTTP protocol support (client/server)')
+option('debug-log', type: 'boolean', value: false, description: 'debug log output')
+option('tls', type: 'feature', value: 'enabled', description: 'OpenSSL support')
+option('asm', type: 'boolean', value: true, description: 'ASM PoW implementations')
+option('msr', type: 'boolean', value: true, description: 'MSR mod & 1st-gen Ryzen fix')
+option('env-vars', type: 'feature', value: 'auto', description: 'environment variables support in config file')
+option('embedded-config', type: 'boolean', value: false, description: 'internal embedded JSON config')
+option('opencl', type: 'boolean', value: true, description: 'OpenCL backend')
+option('opencl-version', type: 'combo', value: 'auto', choices: ['120', '200', '210', '220', 'auto'], description: 'Target OpenCL version (auto: 120 für apple, 200 for others)')
+option('cuda', type: 'boolean', value: true, description: 'CUDA backend')
+option('nvml', type: 'feature', value: 'auto', description: 'NVML (NVIDIA Management Library) support (only if CUDA backend enabled)')
+option('adl', type: 'feature', value: 'auto', description: 'ADL (AMD Display Library) or sysfs support (only if OpenCL backend enabled)')
+option('strict-cache', type: 'boolean', value: true, description: 'strict checks for OpenCL cache')
+option('interleave-debug-log', type: 'boolean', value: false, description: 'debug log for threads interleave')
+option('profiling', type: 'boolean', value: false, description: 'profiling for developers')
+option('sse41', type: 'feature', value: 'auto', description: 'SSE 4.1 for Blake2')
+option('avx2', type: 'feature', value: 'auto', description: 'AVX2 for Blake2')
+option('vaes', type: 'feature', value: 'auto', description: 'VAES instructions for Cryptonight')
+option('benchmark', type: 'boolean', value: true, description: 'builtin RandomX benchmark and stress test')
+option('secure-jit', type: 'feature', value: 'auto', description: 'secure access to JIT memory')
+option('dmi', type: 'feature', value: 'auto', description: 'DMI/SMBIOS reader')
+
+# option(BUILD-STATIC	' "Build static binary" OFF) TODO: see if meson can do that my itself
+
+# just a workaround for buggy platform detection?
+# option('armv8', type: 'boolean', value: false, description: 'Force ARMv8 (64 bit) architecture, use with caution if automatic detection fails, but you sure it may work')
+# option('armv7', type: 'boolean', value: false, description: 'Force ARMv7 (32 bit) architecture, use with caution if automatic detection fails, but you sure it may work')
+
+
+option('hwloc-debug', type: 'boolean', value: false, description: 'hwloc debug helpers and log')
+
