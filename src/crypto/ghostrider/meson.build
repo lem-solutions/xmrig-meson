@@ -71,5 +71,5 @@ ghostrider_lib = static_library('ghostrider',
 	headers_ghostrider + 'ghostrider.cpp',
 	link_with: ghostrider_int_lib,
 	cpp_args: g_def_args,
-	dependencies: [uv_dep]
+	dependencies: [uv_dep, hwloc_dep]
 )

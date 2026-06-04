@@ -16,7 +16,7 @@ disable_adl = not (os_win or (host_machine.system() == 'linux'))
 adl = get_option('adl').disable_if(disable_adl).enable_auto_if(true).enabled()
 
 dmi_oscheck = (not os_win) and (host_machine.system() != 'linux') and (host_machine.system() != 'freebsd')
-dmi_maccheck = not (host_machine.subsystem() == 'macos' and not arm)
+dmi_maccheck = not (host_machine.system() == 'darwin' and host_machine.subsystem() == 'macos' and not arm)
 dmi = get_option('dmi').disable_if(dmi_oscheck and dmi_maccheck).enable_auto_if(true).enabled()
 
 # We always use our subprojects for theses libraries, some of them are modified.
@@ -26,7 +26,8 @@ if get_option('http')
 endif
 if get_option('hwloc')
 	sub = subproject('hwloc')
-	xmrig_deps += sub.get_variable('hwloc_dep')
+	hwloc_dep = sub.get_variable('hwloc_dep')
+	xmrig_deps += hwloc_dep
 endif
 if  get_option('argon2')
 	sub = subproject('argon2')
@@ -55,7 +56,7 @@ endif
 
 # For these dependencies, we try to find one the normal way and fall back to our
 # subprojects if they are not available.
-openssl_dep = dependency('openssl', version: '>=3.0.8', required: get_option('tls'))
+openssl_dep = dependency('openssl', version: '>=3.0.8', required: get_option('tls'), default_options:['default_library=static'])
 if openssl_dep.found()
 	xmrig_deps += openssl_dep
 endif
@@ -138,7 +139,7 @@ arm = host_machine.cpu_family() == 'aarch64' or host_machine.cpu_family() == 'ar
 if host_machine.cpu_family() == 'aarch64'
 	xmrig_defines += 'XMRIG_ARM=8'
 	
-	if(cpp.compiler_id() == 'clang' or cpp.compiler_id() == 'gcc')
+	if(cpp.get_id() == 'clang' or cpp.get_id() == 'gcc')
 		if cpp.has_argument('-march=armv8-a+crypto')
 			xmrig_defines += 'XMRIG_ARM_CRYPTO'
 			arm8_cpp_flags += '-march=armv8-a+crypto'
@@ -309,14 +310,12 @@ else
 	
 	if host_machine.system() == 'android'
 		extra_libs += dependency('threads')
-		#extra_libs += dependency('rt')
-		extra_libs += dependency('dl')
-		extra_libs += dependency('log')
+		extra_libs += c.find_library('dl')
+		extra_libs += c.find_library('log')
 	elif host_machine.system() == 'linux'
 		sources += 'src/crypto/common/LinuxMemory.h'
 		sources += 'src/crypto/common/LinuxMemory.cpp'
 		extra_libs += dependency('threads')
-		#extra_libs += dependency('rt')
 		extra_libs += dependency('dl')
 	elif host_machine.system() == 'freebsd'
 		extra_libs += dependency('kvm')
@@ -719,6 +718,8 @@ if get_option('asm') and (not arm) and (not riscv) and xmrig_64_bit
 		'src/crypto/cn/r/CryptonightR_gen.cpp'
 	]
 	xmrig_defines += 'XMRIG_FEATURE_ASM'
+else
+	xmrig_asm_sources = []
 endif
 
 inputs = headers + sources + sources_os + headers_crypto + sources_crypto + sources_syslog + tls_sources + xmrig_asm_sources

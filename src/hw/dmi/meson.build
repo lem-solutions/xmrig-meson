@@ -17,7 +17,7 @@ if dmi
 		sources += 'src/hw/dmi/DmiReader_win.cpp'
 	elif host_machine.system() == 'linux' or host_machine.system() == 'freebsd'
 		sources += 'src/hw/dmi/DmiReader_unix.cpp'
-	elif host_machine.subsystem() == 'macos'
+	elif host_machine.system() == 'darwin' and host_machine.subsystem() == 'macos'
 		sources += 'src/hw/dmi/DmiReader_mac.cpp'
 	endif
 endif
