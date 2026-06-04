@@ -26,7 +26,7 @@
 #define XMRIG_ARGON2_HASH_H
 
 
-#include "3rdparty/argon2.h"
+#include <argon2.h>
 #include "base/crypto/Algorithm.h"
 #include "crypto/cn/CryptoNight.h"
 

@@ -30,11 +30,23 @@ if get_option('hwloc')
 endif
 if  get_option('argon2')
 	sub = subproject('argon2')
-	xmrig_link_with += sub.get_variable('argon2_lib')
+	argon2_dep = sub.get_variable('argon2_dep')
+	xmrig_deps += argon2_dep
 endif
 if get_option('kawpow')
-	sub = subproject('ethash')
-	xmrig_deps += sub.get_variable('ethash_dep')
+	ethash_dep = declare_dependency(
+		sources: [
+			'src/3rdparty/libethash/data_sizes.h',
+			'src/3rdparty/libethash/endian.h',
+			'src/3rdparty/libethash/ethash.h',
+			'src/3rdparty/libethash/ethash_internal.h',
+			'src/3rdparty/libethash/fnv.h',
+			'src/3rdparty/libethash/ethash_internal.c',
+			'src/3rdparty/libethash/keccakf800.c',
+		],
+		include_directories: include_directories('src/3rdparty/libethash')
+	)
+	xmrig_deps += ethash_dep
 endif
 if host_machine.system() != 'darwin'
 	sub = subproject('opencl')
@@ -717,6 +729,7 @@ foreach s : inputs
 		extra_args = compile_flags_for_files[s]
 		xmrig_link_with += static_library('boguslib-for-' + s.underscorify(), s,
 			c_args: xmrig_def_args + extra_args, cpp_args: xmrig_def_args + extra_args,
+			dependencies: argon2_dep,
 			#dependencies: xmrig_deps + extra_libs,
 			install: false,
 		)

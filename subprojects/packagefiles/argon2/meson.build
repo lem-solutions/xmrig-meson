@@ -59,3 +59,4 @@ if argon2_x86_64_enabled
 endif
 
 argon2_lib = static_library('argon2', sources, link_with: libs, include_directories: 'lib')
+argon2_dep = declare_dependency(link_with: argon2_lib, include_directories: include_directories('include'))

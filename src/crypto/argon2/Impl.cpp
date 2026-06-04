@@ -23,7 +23,7 @@
  */
 
 
-#include "3rdparty/argon2.h"
+#include <argon2.h>
 #include "base/tools/String.h"
 #include "crypto/argon2/Impl.h"
 

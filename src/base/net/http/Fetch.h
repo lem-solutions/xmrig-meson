@@ -21,7 +21,7 @@
 #define XMRIG_FETCH_H
 
 
-#include "3rdparty/llhttp/llhttp.h"
+#include <llhttp.h>
 #include "3rdparty/rapidjson/fwd.h"
 #include "base/tools/String.h"
 
