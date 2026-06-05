@@ -11,7 +11,7 @@ option('http', type: 'boolean', value: true, description: 'HTTP protocol support
 option('debug-log', type: 'boolean', value: false, description: 'debug log output')
 option('tls', type: 'feature', value: 'enabled', description: 'OpenSSL support')
 option('asm', type: 'boolean', value: true, description: 'ASM PoW implementations')
-option('msr', type: 'boolean', value: true, description: 'MSR mod & 1st-gen Ryzen fix')
+option('msr', type: 'feature', value: 'auto', description: 'MSR mod & 1st-gen Ryzen fix')
 option('env-vars', type: 'feature', value: 'auto', description: 'environment variables support in config file')
 option('embedded-config', type: 'boolean', value: false, description: 'internal embedded JSON config')
 option('opencl', type: 'boolean', value: true, description: 'OpenCL backend')

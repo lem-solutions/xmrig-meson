@@ -11,13 +11,17 @@ cmake = import('cmake')
 cpp = meson.get_compiler('cpp')
 c = meson.get_compiler('c')
 
+xmrig_64_bit = cpp.sizeof('void*') == 8
 os_win = host_machine.system() == 'windows' or host_machine.system() == 'cygwin'
+arm = host_machine.cpu_family() == 'aarch64' or host_machine.cpu_family() == 'arm'
+riscv =  host_machine.cpu_family() == 'risc64' or host_machine.cpu_family() == 'risc32'
 disable_adl = not (os_win or (host_machine.system() == 'linux'))
 adl = get_option('adl').disable_if(disable_adl).enable_auto_if(true).enabled()
 
 dmi_oscheck = (not os_win) and (host_machine.system() != 'linux') and (host_machine.system() != 'freebsd')
 dmi_maccheck = not (host_machine.system() == 'darwin' and host_machine.subsystem() == 'macos' and not arm)
 dmi = get_option('dmi').disable_if(dmi_oscheck and dmi_maccheck).enable_auto_if(true).enabled()
+msr = get_option('msr').disable_if(arm or riscv or (not xmrig_64_bit) or not (os_win or host_machine.system() == 'linux')).enable_auto_if(true).enabled()
 
 # We always use our subprojects for theses libraries, some of them are modified.
 if get_option('http')
@@ -77,12 +81,10 @@ compile_flags_for_files = {}
 
 # cmake/cpu.cmake
 
-xmrig_64_bit = cpp.sizeof('void*') == 8
 if xmrig_64_bit
 	xmrig_defines += 'XMRIG_64_BIT'
 endif
 
-riscv =  host_machine.cpu_family() == 'risc64' or host_machine.cpu_family() == 'risc32'
 if riscv
 	xmrig_defines += 'XMRIG_RISCV'
 	rvarch = 'rv64gc' # seems wrong for risc32...
@@ -135,7 +137,6 @@ vaes = get_option('vaes').disable_if(host_machine.cpu() != 'x86_64' or (not cpp.
 avx2 = get_option('avx2').disable_if(host_machine.cpu() != 'x86_64').enabled()
 sse41 = get_option('sse41').disable_if(host_machine.cpu() != 'x86_64').enabled()
 
-arm = host_machine.cpu_family() == 'aarch64' or host_machine.cpu_family() == 'arm'
 if host_machine.cpu_family() == 'aarch64'
 	xmrig_defines += 'XMRIG_ARM=8'
 	
@@ -537,7 +538,8 @@ if get_option('randomx')
 		sources_crypto += 'src/crypto/rx/RxNUMAStorage.cpp'
 	endif
 	
-	if get_option('msr') and (not arm) and (not riscv) and xmrig_64_bit and (os_win or host_machine.system() == 'linux')
+	
+	if msr
 		xmrig_defines += 'XMRIG_FEATURE_MSR'
 		xmrig_defines += 'XMRIG_FIX_RYZEN'
 		
