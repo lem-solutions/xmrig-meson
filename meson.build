@@ -674,13 +674,12 @@ if get_option('debug-log')
 	xmrig_defines += 'APP_DEBUG'
 endif
 
+# cmake/asm.cmake
 
 xmrig_def_args = []
 foreach def : xmrig_defines
 	xmrig_def_args += '-D' + def
 endforeach
-
-# cmake/asm.cmake
 
 if get_option('asm') and (not arm) and (not riscv) and xmrig_64_bit
 	if c.get_id() == 'msvc'
@@ -718,7 +717,9 @@ if get_option('asm') and (not arm) and (not riscv) and xmrig_64_bit
 		'src/crypto/common/Assembly.cpp',
 		'src/crypto/cn/r/CryptonightR_gen.cpp'
 	]
+	# TODO this is stupid, there should only be xmrig_def_args.
 	xmrig_defines += 'XMRIG_FEATURE_ASM'
+	xmrig_def_args += '-DXMRIG_FEATURE_ASM'
 else
 	xmrig_asm_sources = []
 endif
