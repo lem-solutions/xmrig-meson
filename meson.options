@@ -1,4 +1,4 @@
-option('hwloc', type: 'boolean', value: true, description: 'hwloc support')
+option('hwloc', type: 'feature', value: 'enabled', description: 'hwloc support')
 option('cn-lite', type: 'boolean', value: true, description: 'CryptoNight-Lite algorithms family')
 option('cn-heavy', type: 'boolean', value: true, description: 'CryptoNight-Heavy algorithms family')
 option('cn-pico', type: 'boolean', value: true, description: 'CryptoNight-Pico algorithm')

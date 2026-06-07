@@ -28,11 +28,6 @@ if get_option('http')
 	sub = subproject('llhttp')
 	xmrig_deps += sub.get_variable('llhttp_dep')
 endif
-if get_option('hwloc')
-	sub = subproject('hwloc')
-	hwloc_dep = sub.get_variable('hwloc_dep')
-	xmrig_deps += hwloc_dep
-endif
 if  get_option('argon2')
 	sub = subproject('argon2')
 	argon2_dep = sub.get_variable('argon2_dep')
@@ -63,6 +58,10 @@ endif
 openssl_dep = dependency('openssl', version: '>=3.0.8', required: get_option('tls'), default_options:['default_library=static'])
 if openssl_dep.found()
 	xmrig_deps += openssl_dep
+endif
+hwloc_dep = dependency('hwloc', version: '>=1.12', required: get_option('hwloc'))
+if hwloc_dep.found()
+	xmrig_deps += hwloc_dep
 endif
 
 add_project_dependencies(declare_dependency(include_directories: include_directories('src')),language: ['c', 'cpp'])
@@ -283,7 +282,7 @@ if vaes
 	compile_flags_for_files += {'src/crypto/cn/CryptoNight_x86_vaes.cpp': ['-Ofast', '-fno-tree-vectorize', '-mavx2', '-mvaes']}
 endif
 
-if get_option('hwloc')
+if hwloc_dep.found()
 	headers_crypto += 'src/crypto/common/NUMAMemoryPool.h'
 	sources_crypto += 'src/crypto/common/NUMAMemoryPool.cpp'
 	sources_crypto += 'src/crypto/common/VirtualMemory_hwloc.cpp'
@@ -533,7 +532,7 @@ if get_option('randomx')
 		compile_flags_for_files += {'src/crypto/randomx/jit_compiler_x86.cpp': ['-Wno-unused-const-variable']}
 	endif
 	
-	if get_option('hwloc')
+	if hwloc_dep.found()
 		headers_crypto += 'src/crypto/rx/RxNUMAStorage.h'
 		sources_crypto += 'src/crypto/rx/RxNUMAStorage.cpp'
 	endif

@@ -165,7 +165,7 @@ else
 	]
 endif
 	
-if get_option('hwloc')
+if hwloc_dep.found()
 	sources_os += 'src/base/kernel/Platform_hwloc.cpp'
 endif
 

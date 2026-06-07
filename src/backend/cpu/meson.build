@@ -21,7 +21,7 @@ sources_backend_cpu = [
 	'src/backend/cpu/CpuWorker.cpp'
 ]
 
-if get_option('hwloc')
+if hwloc_dep.found()
 	xmrig_defines += 'XMRIG_FEATURE_HWLOC'
 	if get_option('hwloc-debug')
 		xmrig_defines += 'XMRIG_HWLOC_DEBUG'
