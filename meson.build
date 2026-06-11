@@ -7,21 +7,25 @@ project('xmrig', ['cpp', 'c'], meson_version: '>=1.2', default_options: {
 
 xmrig_deps = []
 xmrig_link_with = []
+
+arm8_cpp_flags = []
+compile_flags_for_files = {}
+
+add_project_dependencies(declare_dependency(include_directories: include_directories('src')),language: ['c', 'cpp'])
 cmake = import('cmake')
 cpp = meson.get_compiler('cpp')
 c = meson.get_compiler('c')
 
+# host properties
 xmrig_64_bit = cpp.sizeof('void*') == 8
 os_win = host_machine.system() == 'windows' or host_machine.system() == 'cygwin'
+os_apple = host_machine.system() == 'darwin'
+os_macos = os_apple and host_machine.subsystem() == 'macos'
+os_ios = os_apple and (host_machine.subsystem() == 'ios' or host_machine.subsystem() == 'ios-simulator')
+os_unix = (not os_win) and (not os_apple)
 arm = host_machine.cpu_family() == 'aarch64' or host_machine.cpu_family() == 'arm'
 riscv =  host_machine.cpu_family() == 'risc64' or host_machine.cpu_family() == 'risc32'
-disable_adl = not (os_win or (host_machine.system() == 'linux'))
-adl = get_option('adl').disable_if(disable_adl).enable_auto_if(true).enabled()
-
-dmi_oscheck = (not os_win) and (host_machine.system() != 'linux') and (host_machine.system() != 'freebsd')
-dmi_maccheck = not (host_machine.system() == 'darwin' and host_machine.subsystem() == 'macos' and not arm)
-dmi = get_option('dmi').disable_if(dmi_oscheck and dmi_maccheck).enable_auto_if(true).enabled()
-msr = get_option('msr').disable_if(arm or riscv or (not xmrig_64_bit) or not (os_win or host_machine.system() == 'linux')).enable_auto_if(true).enabled()
+have_syslog_h = (not os_win) and cpp.check_header('syslog.h')
 
 # We always use our subprojects for theses libraries, some of them are modified.
 if get_option('http')
@@ -64,28 +68,110 @@ if hwloc_dep.found()
 	xmrig_deps += hwloc_dep
 endif
 
-add_project_dependencies(declare_dependency(include_directories: include_directories('src')),language: ['c', 'cpp'])
+# feature decisions
+adl = get_option('adl').disable_if((os_win or (host_machine.system() == 'linux'))).disable_if(not get_option('opencl')).enable_auto_if(true).enabled()
+dmi_oscheck = (not os_win) and (host_machine.system() != 'linux') and (host_machine.system() != 'freebsd')
+dmi_maccheck = not (host_machine.system() == 'darwin' and host_machine.subsystem() == 'macos' and not arm)
+dmi = get_option('dmi').disable_if(dmi_oscheck and dmi_maccheck).enable_auto_if(true).enabled()
+msr = get_option('msr').disable_if(arm or riscv or (not xmrig_64_bit) or not (os_win or host_machine.system() == 'linux')).disable_if(not get_option('randomx')).enable_auto_if(true).enabled()
+# Seems wired to me, the the original cmake build script does that...
+vaes = get_option('vaes').disable_if(host_machine.cpu() != 'x86_64' or (not cpp.has_argument('-mavx2')) or (not cpp.has_argument('-mvaes'))).enabled()
+avx2 = get_option('avx2').disable_if(host_machine.cpu() != 'x86_64').enabled()
+sse41 = get_option('sse41').disable_if(host_machine.cpu() != 'x86_64').enabled()
+secure_jit = get_option('secure-jit').enable_if(host_machine.system() == 'darwin' and arm).disable_auto_if(true).enabled()
+profiling = get_option('profiling').disable_if(not get_option('randomx')).enable_auto_if(true).enabled()
+env_vars = get_option('env-vars').disable_if(cpp.get_id() == 'gcc' and cpp.version().version_compare('<4.9')).enable_auto_if(true).enabled()
+xmrig_benchmark = get_option('benchmark').disable_if(not get_option('randomx')).enable_auto_if(true).enabled()
+hwloc_debug = get_option('hwloc-debug').disable_if(not hwloc_dep.found()).enable_auto_if(true).enabled()
+cl_strict_cache = get_option('strict-cache').disable_if(not get_option('opencl')).enable_auto_if(true).enabled()
+cl_interleave_debug_log = get_option('interleave-debug-log').disable_if(not get_option('opencl')).disable_auto_if(true).enabled()
+nvml = get_option('nvml').disable_if(host_machine.system() == 'darwin').enable_auto_if(true).enabled()
+asm = get_option('asm').disable_if(arm or riscv or not xmrig_64_bit).enable_auto_if(true).enabled()
+if get_option('randomx') and not get_option('argon2')
+	error('randomx requires argon2')
+endif
 
-xmrig_defines = [
-	'RAPIDJSON_WRITE_DEFAULT_FLAGS=6', # rapidjson::kWriteNanAndInfFlag | rapidjson::kWriteNanAndInfNullFlag
+# feature/host dependent defines
+defines = {
+	'RAPIDJSON_WRITE_DEFAULT_FLAGS=6': true, # rapidjson::kWriteNanAndInfFlag | rapidjson::kWriteNanAndInfNullFlag
 	
-	'XMRIG_MINER_PROJECT',
-	'XMRIG_JSON_SINGLE_LINE_ARRAY',
-	'__STDC_FORMAT_MACROS',
-	'UNICODE',
-	'FILE_OFFSET_BITS=64'
-]
-arm8_cpp_flags = []
-compile_flags_for_files = {}
+	'XMRIG_MINER_PROJECT': true,
+	'XMRIG_JSON_SINGLE_LINE_ARRAY': true,
+	'__STDC_FORMAT_MACROS': true,
+	'UNICODE': true,
+	'FILE_OFFSET_BITS=64': true,
+	'XMRIG_SECURE_JIT': secure_jit,
+	'XMRIG_64_BIT': xmrig_64_bit,
+	'XMRIG_RISCV': riscv,
+	'RAPIDJSON_SSE2': xmrig_64_bit and host_machine.cpu() == 'x86_64',
+	'XMRIG_ARM=8': host_machine.cpu_family() == 'aarch64',
+	'XMRIG_ARM=7': host_machine.cpu_family() == 'arm',
+	'XMRIG_FEATURE_SSE4_1': sse41,
+	'XMRIG_FEATURE_AVX2': avx2,
+	'WIN32': os_win,
+	'XMRIG_OS_WIN': os_win,
+	'XMRIG_OS_APPLE': os_apple,
+	'XMRIG_OS_MACOS': os_macos,
+	'XMRIG_OS_IOS': os_ios,
+	'XMRIG_OS_UNIX': os_unix,
+	'XMRIG_OS_ANDROID': os_unix and host_machine.system() == 'android',
+	'XMRIG_OS_LINUX': os_unix and host_machine.system() == 'linux',
+	'XMRIG_OS_FREEBSD': os_unix and host_machine.system() == 'freebsd',
+	'XMRIG_OS_OPENBSD': os_unix and host_machine.system() == 'openbsd',
+	'XMRIG_OS_HAIKU': os_unix and host_machine.system() == 'haiku',
+	'DXMRIG_VAES': vaes,
+	'NDEBUG': get_option('buildtype') == 'release',
+	# setting this for both C and C++ when only querying the C++ compiler is
+	# probably wrong but unlikey to cause issues.
+	'_GNU_SOURCE': cpp.get_id() == 'gcc',
+	'HAVE_BUILTIN_CLEAR_CACHE': cpp.get_id() == 'gcc' or ((not os_win) and cpp.has_header_symbol('stdlib.h', '__builtin___clear_cache')),
+	'HAVE_ALIGNED_MALLOC': get_option('randomx') and os_win and cpp.has_header_symbol('stdlib.h', '_aligned_malloc'),
+	'HAVE_POSIX_MEMALIGN': get_option('randomx') and (not os_win) and cpp.has_header_symbol('stdlib.h', 'posix_memalign'),
+	'XMRIG_ALGO_RANDOMX': get_option('randomx'),
+	'XMRIG_FEATURE_MSR': msr,
+	'XMRIG_FIX_RYZEN': msr,
+	'XMRIG_FEATURE_PROFILING': profiling,
+	'XMRIG_ALGO_ARGON2': get_option('argon2'),
+	'XMRIG_ALGO_KAWPOW': get_option('kawpow'),
+	'XMRIG_ALGO_GHOSTRIDER': get_option('ghostrider'),
+	'XMRIG_FEATURE_TLS': openssl_dep.found(),
+	'XMRIG_ALGO_CN_LITE': get_option('cn-lite'),
+	'XMRIG_ALGO_CN_HEAVY': get_option('cn-heavy'),
+	'XMRIG_ALGO_CN_PICO': get_option('cn-pico'),
+	'XMRIG_ALGO_CN_FEMTO': get_option('cn-femto'),
+	'XMRIG_FEATURE_EMBEDDED_CONFIG': get_option('embedded-config'),
+	'APP_DEBUG': get_option('debug-log'),
+	'XMRIG_FEATURE_ASM': asm,
+	'XMRIG_FEATURE_HTTP': get_option('http'),
+	'XMRIG_FEATURE_API': get_option('http'),
+	'XMRIG_FEATURE_ENV': env_vars,
+	'XMRIG_FEATURE_BENCHMARK': xmrig_benchmark,
+	'XMRIG_FEATURE_HWLOC': hwloc_dep.found(),
+	'XMRIG_HWLOC_DEBUG': hwloc_debug,
+	'XMRIG_FEATURE_OPENCL': get_option('opencl'),
+	'CL_USE_DEPRECATED_OPENCL_1_2_APIS': get_option('opencl'),
+	'XMRIG_STRICT_OPENCL_CACHE': cl_strict_cache,
+	'XMRIG_INTERLEAVE_DEBUG': cl_interleave_debug_log,
+	'XMRIG_FEATURE_ADL': adl,
+	'XMRIG_FEATURE_CUDA': get_option('cuda'),
+	'XMRIG_FEATURE_NVML': nvml,
+	'HAVE_SYSLOG_H': have_syslog_h,
+	'HAVE_ROTR': ((cpp.get_id() == 'gcc' or cpp.get_id() == 'clang') and (riscv or cpp.has_header_symbol('x86intrin.h', '_rotr'))) or ((not arm) and cpp.get_id() == 'gcc') or cpp.get_id() == 'msvc',
+	'_CRT_SECURE_NO_WARNINGS': cpp.get_id() == 'msvc',
+	'_CRT_NONSTDC_NO_WARNINGS': cpp.get_id() == 'msvc',
+	'NOMINMAX': cpp.get_id() == 'msvc',
+	'XMRIG_ARM_CRYPTO': host_machine.cpu_family() == 'aarch64' and (cpp.get_id() == 'clang' or cpp.get_id() == 'gcc') and cpp.has_argument('-march=armv8-a+crypto'),
+	'XMRIG_FEATURE_DMI': dmi
+}
+foreach def, cond : defines
+	if cond
+		add_project_arguments('-D'+def, language: ['c', 'cpp'])
+	endif
+endforeach
 
 # cmake/cpu.cmake
 
-if xmrig_64_bit
-	xmrig_defines += 'XMRIG_64_BIT'
-endif
-
 if riscv
-	xmrig_defines += 'XMRIG_RISCV'
 	rvarch = 'rv64gc' # seems wrong for risc32...
 	
 	if (not meson.is_cross_build()) or meson.has_exe_wrapper()
@@ -127,66 +213,14 @@ if riscv
 	massage('Using -march=' + rvarch)
 endif
 
-if xmrig_64_bit and host_machine.cpu() == 'x86_64'
-	xmrig_defines += 'RAPIDJSON_SSE2'
-endif
-
-# Seems wired to me, the the original cmake build script does that...
-vaes = get_option('vaes').disable_if(host_machine.cpu() != 'x86_64' or (not cpp.has_argument('-mavx2')) or (not cpp.has_argument('-mvaes'))).enabled()
-avx2 = get_option('avx2').disable_if(host_machine.cpu() != 'x86_64').enabled()
-sse41 = get_option('sse41').disable_if(host_machine.cpu() != 'x86_64').enabled()
-
 if host_machine.cpu_family() == 'aarch64'
-	xmrig_defines += 'XMRIG_ARM=8'
-	
 	if(cpp.get_id() == 'clang' or cpp.get_id() == 'gcc')
 		if cpp.has_argument('-march=armv8-a+crypto')
-			xmrig_defines += 'XMRIG_ARM_CRYPTO'
-			arm8_cpp_flags += '-march=armv8-a+crypto'
+			add_project_arguments('-march=armv8-a+crypto', language: ['c', 'cpp'])
 		else
-			arm8_cpp_flags += '-march=armv8-a'
+			add_project_arguments('-march=armv8-a', language: ['c', 'cpp'])
 		endif
 	endif
-elif host_machine.cpu_family() == 'arm'
-	xmrig_defines += 'XMRIG_ARM=7'
-endif
-
-if sse41
-	xmrig_defines += 'XMRIG_FEATURE_SSE4_1'
-endif
-if avx2
-	xmrig_defines += 'XMRIG_FEATURE_AVX2'
-endif
-
-# cmake/os.cmake
-
-if os_win
-	xmrig_defines += 'WIN32'
-	xmrig_defines += 'XMRIG_OS_WIN'
-elif host_machine.system() == 'darwin'
-	xmrig_defines += 'XMRIG_OS_APPLE'
-	if host_machine.subsystem() == 'macos'
-		xmrig_defines += 'XMRIG_OS_MACOS'
-	elif host_machine.subsystem() == 'iso' or host_machine.subsystem() == 'iso-simulator'
-		xmrig_defines += 'XMRIG_OS_IOS'
-	endif
-else
-	xmrig_defines += 'XMRIG_OS_UNIX'
-	if host_machine.system() == 'android'
-		xmrig_defines += 'XMRIG_OS_ANDROID'
-	elif  host_machine.system() == 'linux'
-		xmrig_defines += 'XMRIG_OS_LINUX'
-	elif  host_machine.system() == 'freebsd'
-		xmrig_defines += 'XMRIG_OS_FREEBSD'
-	elif  host_machine.system() == 'openbsd'
-		xmrig_defines += 'XMRIG_OS_OPENBSD'
-	elif  host_machine.system() == 'haiku'
-		xmrig_defines += 'XMRIG_OS_HAIKU'
-	endif
-endif
-
-if get_option('secure-jit').enable_if(host_machine.system() == 'darwin' and arm).disable_auto_if(true).enabled()
-	xmrig_defines += XMRIG_SECURE_JIT
 endif
 
 subdir('src/base')
@@ -276,7 +310,6 @@ if c.get_id() == 'gcc'
 endif
 
 if vaes
-	xmrig_defines += 'DXMRIG_VAES'
 	headers_crypto += 'src/crypto/cn/CryptoNight_x86_vaes.h'
 	sources_crypto += 'src/crypto/cn/CryptoNight_x86_vaes.cpp'
 	compile_flags_for_files += {'src/crypto/cn/CryptoNight_x86_vaes.cpp': ['-Ofast', '-fno-tree-vectorize', '-mavx2', '-mvaes']}
@@ -326,12 +359,6 @@ endif
 uv_dep = dependency('libuv', static: true, default_options: ['default_library=static'])
 xmrig_deps += uv_dep
 
-# cmake/flags.cmake
-
-if get_option('buildtype') == 'release'
-	xmrig_defines += 'NDEBUG'
-endif
-
 cflags = []
 cflags_rel = []
 cflags_relwithdbg = []
@@ -351,14 +378,9 @@ if cpp.get_id() == 'gcc' or cpp.get_id() == 'clang'
 	elif riscv
 		cflags += ['-march=' + rvarch]
 		cppflags += ['-march=' + rvarch]
-		xmrig_defines += 'HAVE_ROTR'
 	else
 		cflags += '-maes'
 		cppflags += '-maes'
-		
-		if cpp.get_id() == 'gcc' or cpp.has_header_symbol('x86intrin.h', '_rotr')
-			xmrig_defines += 'HAVE_ROTR'
-		endif
 	endif
 endif
 
@@ -381,16 +403,12 @@ if cpp.get_id() == 'gcc'
 	else
 		exe_linker_flags += ['-static-libgcc', '-static-libstdc++']
 	endif
-	
-	xmrig_defines += ['_GNU_SOURCE',  'HAVE_BUILTIN_CLEAR_CACHE']
 elif cpp.get_id() == 'msvc'
 	cflags_rel += ['/MP', '/MT', '/O2',  '/Oi', '/DNDEBUG', '/GL']
 	cppflags_rel += ['/MP', '/MT', '/O2',  '/Oi', '/DNDEBUG', '/GL']
 	
 	cflags_relwithdbg += ['/MP', '/Ob1', '/Zi', '/DRELWITHDEBINFO']
 	cppflags_relwithdbg += ['/MP', '/Ob1', '/Zi', '/DRELWITHDEBINFO']
-	
-	xmrig_defines += ['_CRT_SECURE_NO_WARNINGS', '_CRT_NONSTDC_NO_WARNINGS', 'NOMINMAX', 'HAVE_ROTR']
 elif cpp.get_id() == 'clang'
 	cflags_rel += ['-funroll-loops', '-fmerge-all-constants']
 	
@@ -412,28 +430,9 @@ elif get_option('buildtype') == 'debugoptimized'
 	add_project_dependencies(declare_dependency(compile_args: cppflags_relwithdbg),language: 'cpp')
 endif
 
-if (not os_win) and cpp.has_header_symbol('stdlib.h', '__builtin___clear_cache')
-	xmrig_defines += 'HAVE_BUILTIN_CLEAR_CACHE'
-endif
-
 # cmake/randomx.cmake
 
 if get_option('randomx')
-	if os_win
-		if cpp.has_header_symbol('stdlib.h', '_aligned_malloc')
-			xmrig_defines += 'HAVE_ALIGNED_MALLOC'
-		endif
-	else
-		if cpp.has_header_symbol('stdlib.h', 'posix_memalign')
-			xmrig_defines += 'HAVE_POSIX_MEMALIGN'
-		endif
-	endif
-	
-	xmrig_defines += 'XMRIG_ALGO_RANDOMX'
-	if not get_option('argon2')
-		error('randomx requires argon2')
-	endif
-	
 	headers_crypto += [
 		'src/crypto/rx/Rx.h',
 		'src/crypto/rx/RxAlgo.h',
@@ -474,11 +473,11 @@ if get_option('randomx')
 		'src/crypto/rx/RxVm.cpp'
 	]
 	
-	if get_option('asm') and c.get_id() == 'msvc'
-		add_languages('masm', native: false)
+	if asm and c.get_id() == 'msvc'
+		add_languages('masm', native: false) # TODO is this correct/neccecery?
 		sources_crypto += 'src/crypto/randomx/jit_compiler_x86_static.asm'
 		sources_crypto += 'src/crypto/randomx/jit_compiler_x86.cpp'
-	elif get_option('asm') and (not arm) and (not riscv) and xmrig_64_bit
+	elif asm and (not arm) and (not riscv) and xmrig_64_bit
 		sources_crypto += 'src/crypto/randomx/jit_compiler_x86_static.S'
 		sources_crypto += 'src/crypto/randomx/jit_compiler_x86.cpp'
 	elif host_machine.cpu_family() == 'aarch64'
@@ -537,11 +536,7 @@ if get_option('randomx')
 		sources_crypto += 'src/crypto/rx/RxNUMAStorage.cpp'
 	endif
 	
-	
 	if msr
-		xmrig_defines += 'XMRIG_FEATURE_MSR'
-		xmrig_defines += 'XMRIG_FIX_RYZEN'
-		
 		if os_win
 			sources_crypto += 'src/crypto/rx/RxFix_win.cpp'
 			sources_crypto += 'src/hw/msr/Msr_win.cpp'
@@ -564,8 +559,7 @@ if get_option('randomx')
 		]
 	endif
 	
-	if get_option('profiling')
-		xmrig_defines += 'XMRIG_FEATURE_PROFILING'
+	if profiling
 		headers_crypto += 'src/crypto/rx/Profiler.h'
 		sources_crypto += 'src/crypto/rx/Profiler.cpp'
 	endif
@@ -584,7 +578,6 @@ endif
 # cmake/argon2.cmake
 
 if get_option('argon2')
-	xmrig_defines += 'XMRIG_ALGO_ARGON2'
 	headers_crypto += 'src/crypto/argon2/Hash.h'
 	headers_crypto += 'src/crypto/argon2/Impl.h'
 	sources_crypto += 'src/crypto/argon2/Impl.cpp'
@@ -593,7 +586,6 @@ endif
 # cmake/kawpow.cmake
 
 if get_option('kawpow')
-	xmrig_defines += 'XMRIG_ALGO_KAWPOW'
 	headers_crypto += 'src/crypto/kawpow/KPCache.h'
 	headers_crypto += 'src/crypto/kawpow/KPHash.h'
 	sources_crypto += 'src/crypto/kawpow/KPCache.cpp'
@@ -603,13 +595,11 @@ endif
 # cmake/ghostrider.cmake
 
 if get_option('ghostrider')
-	xmrig_defines += 'XMRIG_ALGO_GHOSTRIDER'
 	subdir('src/crypto/ghostrider')
 	xmrig_link_with += ghostrider_lib
 endif
 
 # cmake/openssl.cmake
-
 
 exe_name = 'xmrig'
 if openssl_dep.found()
@@ -640,7 +630,6 @@ if openssl_dep.found()
 			'src/base/net/https/HttpsServer.h'
 		]
 	endif
-	xmrig_defines += 'XMRIG_FEATURE_TLS'
 else
 	if llhttp_dep.found()
 		tls_sources += 'src/base/net/http/HttpServer.cpp'
@@ -650,38 +639,12 @@ else
 	exe_name += '-notls'
 endif
 
-if get_option('cn-lite')
-	xmrig_defines += 'XMRIG_ALGO_CN_LITE'
-endif
-if get_option('cn-heavy')
-	xmrig_defines += 'XMRIG_ALGO_CN_HEAVY'
-endif
-if get_option('cn-pico')
-	xmrig_defines += 'XMRIG_ALGO_CN_PICO'
-endif
-if get_option('cn-femto')
-	xmrig_defines += 'XMRIG_ALGO_CN_FEMTO'
-endif
-
-if get_option('embedded-config')
-	xmrig_defines += 'XMRIG_FEATURE_EMBEDDED_CONFIG'
-endif
-
 subdir('src/hw/api')
 subdir('src/hw/dmi')
 
-if get_option('debug-log')
-	xmrig_defines += 'APP_DEBUG'
-endif
-
 # cmake/asm.cmake
 
-xmrig_def_args = []
-foreach def : xmrig_defines
-	xmrig_def_args += '-D' + def
-endforeach
-
-if get_option('asm') and (not arm) and (not riscv) and xmrig_64_bit
+if asm
 	if c.get_id() == 'msvc'
 		add_languages('masm')
 		# MSVC_TOOLSET_VERSION GREATER_EQUAL 141
@@ -711,15 +674,12 @@ if get_option('asm') and (not arm) and (not riscv) and xmrig_64_bit
 		endif
 	endif
 	
-	xmrig_link_with += static_library('xmrig-asm', asm_files, c_args: xmrig_def_args, cpp_args: xmrig_def_args, install:false)
+	xmrig_link_with += static_library('xmrig-asm', asm_files, install:false)
 	xmrig_asm_sources = [
 		'src/crypto/common/Assembly.h',
 		'src/crypto/common/Assembly.cpp',
 		'src/crypto/cn/r/CryptonightR_gen.cpp'
 	]
-	# TODO this is stupid, there should only be xmrig_def_args.
-	xmrig_defines += 'XMRIG_FEATURE_ASM'
-	xmrig_def_args += '-DXMRIG_FEATURE_ASM'
 else
 	xmrig_asm_sources = []
 endif
@@ -731,7 +691,7 @@ foreach s : inputs
 	if s in compile_flags_for_files
 		extra_args = compile_flags_for_files[s]
 		xmrig_link_with += static_library('boguslib-for-' + s.underscorify(), s,
-			c_args: xmrig_def_args + extra_args, cpp_args: xmrig_def_args + extra_args,
+			c_args: extra_args, cpp_args: extra_args,
 			dependencies: argon2_dep,
 			#dependencies: xmrig_deps + extra_libs,
 			install: false,
@@ -745,8 +705,6 @@ executable(exe_name,
 	inputs_filtered,
 	link_with: xmrig_link_with,
 	link_args: exe_linker_flags,
-	c_args: xmrig_def_args,
-	cpp_args: xmrig_def_args,
 	dependencies: xmrig_deps + extra_libs,
 	install: true,
 )

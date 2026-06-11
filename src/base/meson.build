@@ -170,8 +170,7 @@ if hwloc_dep.found()
 endif
 
 sources_syslog = []
-if (not os_win) and cpp.check_header('syslog.h')
-	xmrig_defines += 'HAVE_SYSLOG_H'
+if have_syslog_h
 	sources_syslog += 'src/base/io/log/backends/SysLog.h'
 	sources_syslog += 'src/base/io/log/backends/SysLog.cpp'
 endif
@@ -212,14 +211,6 @@ if get_option('http')
 		'src/base/net/stratum/SelfSelectClient.cpp',
 		'src/base/net/tools/TcpServer.cpp'
 	]
-	
-	xmrig_defines += 'XMRIG_FEATURE_HTTP'
-	xmrig_defines += 'XMRIG_FEATURE_API'
-endif
-
-env_vars = get_option('env-vars').disable_if(cpp.get_id() == 'gcc' and cpp.version().version_compare('<4.9')).enable_auto_if(true).enabled()
-if env_vars
-	xmrig_defines += 'XMRIG_FEATURE_ENV'
 endif
 
 if get_option('ghostrider') or get_option('kawpow')
@@ -229,8 +220,7 @@ if get_option('ghostrider') or get_option('kawpow')
 	sources_base += 'src/base/net/stratum/EthStratumClient.cpp'
 endif
 
-if get_option('randomx') and get_option('benchmark')
-	xmrig_defines += 'XMRIG_FEATURE_BENCHMARK'
+if xmrig_benchmark
 	headers_base += 'src/base/net/stratum/benchmark/BenchClient.h'
 	headers_base += 'src/base/net/stratum/benchmark/BenchConfig.h'
 	sources_base += 'src/base/net/stratum/benchmark/BenchClient.cpp'

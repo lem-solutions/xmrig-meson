@@ -1,7 +1,3 @@
-
-xmrig_defines += 'XMRIG_FEATURE_OPENCL'
-xmrig_defines += 'CL_USE_DEPRECATED_OPENCL_1_2_APIS'
-
 headers_backend_opencl = [
 	'src/backend/opencl/cl/OclSource.h',
 	'src/backend/opencl/interfaces/IOclRunner.h',
@@ -69,7 +65,7 @@ if vl_ver == 'auto'
 	endif
 endif
 
-xmrig_defines += 'CL_TARGET_OPENCL_VERSION='+vl_ver
+add_project_arguments('-DCL_TARGET_OPENCL_VERSION='+vl_ver, language: ['c', 'cpp'])
 if host_machine.system() == 'darwin'
 	sources_backend_opencl += 'src/backend/opencl/wrappers/OclDevice_mac.cpp'
 	if vl_ver != '120'
@@ -135,14 +131,7 @@ if get_option('kawpow')
 	]
 endif
 
-if get_option('strict-cache')
-	xmrig_defines += 'XMRIG_STRICT_OPENCL_CACHE'
-endif
-if get_option('interleave-debug-log')
-	xmrig_defines += 'XMRIG_INTERLEAVE_DEBUG'
-endif
 if adl
-	xmrig_defines += 'XMRIG_FEATURE_ADL'
 	headers_backend_opencl += 'src/backend/opencl/wrappers/AdlHealth.h'
 	headers_backend_opencl += 'src/backend/opencl/wrappers/AdlLib.h'
 	

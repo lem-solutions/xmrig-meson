@@ -1,5 +1,4 @@
 if dmi
-	xmrig_defines += 'XMRIG_FEATURE_DMI'
 	headers += [
 		'src/hw/dmi/DmiBoard.h',
 		'src/hw/dmi/DmiMemory.h',

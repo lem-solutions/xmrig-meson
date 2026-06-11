@@ -38,38 +38,32 @@ sources_ghostrider_c = [
 	'sph_whirlpool.c'
 ]
 
-g_def_args = []
-foreach def : xmrig_defines
-	g_def_args += '-D' + def
-endforeach
-
 if c.get_id() == 'msvc'
 	if get_option('buildtype') == 'release'
-		ghostrider_compile_args = g_def_args + ['/O1', '/Oi', '/Os']
+		ghostrider_compile_args = ['/O1', '/Oi', '/Os']
 	else
-		ghostrider_compile_args = g_def_args
+		ghostrider_compile_args = []
 	endif
-	ghostrider_int_lib = static_library('ghostrider_internal', headers_ghostrider + sources_ghostrider_c, c_args: g_def_args  + ghostrider_compile_args)
+	ghostrider_int_lib = static_library('ghostrider_internal', headers_ghostrider + sources_ghostrider_c, c_args: ghostrider_compile_args)
 elif c.get_id() == 'gcc' or c.get_id() == 'clang'
 	ghostrider_int_libs = []
 	src_norm = []
 	foreach s : sources_ghostrider_c
 		if s == 'sph_jh.c'
-			ghostrider_int_libs += static_library('ghostrider_internal_jh', headers_ghostrider + s, c_args: g_def_args + ['-Os', '-fno-tree-vrp'])
+			ghostrider_int_libs += static_library('ghostrider_internal_jh', headers_ghostrider + s, c_args: ['-Os', '-fno-tree-vrp'])
 		elif s == 'sph_luffa.c'
-			ghostrider_int_libs += static_library('ghostrider_internal_luffa', headers_ghostrider + s, c_args: g_def_args + ['-Os', '-Wno-unused-const-variable'])
+			ghostrider_int_libs += static_library('ghostrider_internal_luffa', headers_ghostrider + s, c_args: ['-Os', '-Wno-unused-const-variable'])
 		else
 			src_norm += s
 		endif
 	endforeach
-	ghostrider_int_lib = static_library('ghostrider_internal', headers_ghostrider + src_norm, link_with: ghostrider_int_libs, c_args: g_def_args + ['-Os'])
+	ghostrider_int_lib = static_library('ghostrider_internal', headers_ghostrider + src_norm, link_with: ghostrider_int_libs, c_args: ['-Os'])
 else
-	ghostrider_int_lib = static_library('ghostrider_internal', headers_ghostrider + sources_ghostrider_c, c_args: g_def_args)
+	ghostrider_int_lib = static_library('ghostrider_internal', headers_ghostrider + sources_ghostrider_c)
 endif
 
 ghostrider_lib = static_library('ghostrider',
 	headers_ghostrider + 'ghostrider.cpp',
 	link_with: ghostrider_int_lib,
-	cpp_args: g_def_args,
 	dependencies: [uv_dep, hwloc_dep]
 )

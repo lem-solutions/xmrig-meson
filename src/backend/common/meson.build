@@ -20,7 +20,7 @@ sources_backend_common = [
 	'src/backend/common/Workers.cpp'
 ]
 
-if get_option('randomx') and get_option('benchmark')
+if xmrig_benchmark
 	headers_backend_common += [
 		'src/backend/common/benchmark/Benchmark.h',
 		'src/backend/common/benchmark/BenchState_test.h',

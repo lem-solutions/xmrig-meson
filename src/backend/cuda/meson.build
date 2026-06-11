@@ -1,4 +1,3 @@
-xmrig_defines += 'XMRIG_FEATURE_CUDA'
 headers_backend_cuda = [
 	'src/backend/cuda/CudaBackend.h',
 	'src/backend/cuda/CudaConfig_gen.h',
@@ -27,8 +26,7 @@ sources_backend_cuda = [
 	'src/backend/cuda/wrappers/CudaLib.cpp'
 ]
 
-if get_option('nvml').disable_if(host_machine.system() == 'darwin').enable_auto_if(true).enabled()
-	xmrig_defines += 'XMRIG_FEATURE_NVML'
+if nvml
 	headers_backend_cuda += [
 		'src/backend/cuda/wrappers/nvml_lite.h',
 		'src/backend/cuda/wrappers/NvmlHealth.h',
