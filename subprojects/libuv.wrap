@@ -8,6 +8,7 @@ patch_url = https://wrapdb.mesonbuild.com/v2/libuv_1.51.0-1/get_patch
 patch_hash = 0fb123dee5e74621a767a8f2a29dde7219c65a01a5fe63e3c8ffeed675a2d820
 source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/libuv_1.51.0-1/libuv-v1.51.0.tar.gz
 wrapdb_version = 1.51.0-1
+diff_files = libuv.patch
 
 [provide]
 libuv = libuv_dep

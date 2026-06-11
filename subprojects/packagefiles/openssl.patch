@@ -1,0 +1,11 @@
+--- a/meson.build
++++ b/meson.build
+@@ -67,7 +67,7 @@
+ is_darwin = host_machine.system() == 'darwin'
+ is_linux = host_machine.system() in ['linux', 'android']
+ is_sunos = host_machine.system() == 'sunos'
+-is_windows = host_machine.system() == 'windows'
++is_windows = host_machine.system() in ['windows', 'cygwin']
+ 
+ is_x86 = host_machine.cpu_family() == 'x86'
+ is_x86_64 = host_machine.cpu_family() == 'x86_64'

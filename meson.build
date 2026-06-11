@@ -30,7 +30,8 @@ have_syslog_h = (not os_win) and cpp.check_header('syslog.h')
 # We always use our subprojects for theses libraries, some of them are modified.
 if get_option('http')
 	sub = subproject('llhttp')
-	xmrig_deps += sub.get_variable('llhttp_dep')
+	llhttp_dep = sub.get_variable('llhttp_dep')
+	xmrig_deps += llhttp_dep
 endif
 if  get_option('argon2')
 	sub = subproject('argon2')
@@ -91,10 +92,8 @@ if get_option('randomx') and not get_option('argon2')
 	error('randomx requires argon2')
 endif
 
-# feature/host dependent defines
 defines = {
 	'RAPIDJSON_WRITE_DEFAULT_FLAGS=6': true, # rapidjson::kWriteNanAndInfFlag | rapidjson::kWriteNanAndInfNullFlag
-	
 	'XMRIG_MINER_PROJECT': true,
 	'XMRIG_JSON_SINGLE_LINE_ARRAY': true,
 	'__STDC_FORMAT_MACROS': true,
@@ -321,16 +320,18 @@ if hwloc_dep.found()
 	sources_crypto += 'src/crypto/common/VirtualMemory_hwloc.cpp'
 endif
 
+windows_rc = []
 if os_win
-	sources_os += 'res/app.rc'
+	windows_mod = import('windows')
+	windows_rc += windows_mod.compile_resources('res/app.rc')
 	sources_os += 'src/App_win.cpp'
 	sources_os += 'src/crypto/common/VirtualMemory_win.cpp'
 	extra_libs += [
-		dependency('ws2_32'),
-		dependency('psapi'),
-		dependency('iphlpapi'),
-		dependency('userenv'),
-		dependency('dbghelp')
+		cpp.find_library('ws2_32'),
+		cpp.find_library('psapi'),
+		cpp.find_library('iphlpapi'),
+		cpp.find_library('userenv'),
+		cpp.find_library('dbghelp')
 	]
 elif host_machine.system() == 'darwin'
 	sources_os += 'src/App_unix.cpp'
@@ -356,7 +357,7 @@ else
 	endif
 endif
 
-uv_dep = dependency('libuv', static: true, default_options: ['default_library=static'])
+uv_dep = dependency('libuv', static: true, default_options: ['default_library=static', 'build_tests=false', 'build_benchmarks=false'])
 xmrig_deps += uv_dep
 
 cflags = []
@@ -602,12 +603,13 @@ endif
 # cmake/openssl.cmake
 
 exe_name = 'xmrig'
+tls_sources = []
 if openssl_dep.found()
 	if os_win
-		extra_libs += 'crypt32'
+		extra_libs += cpp.find_library('crypt32')
 	endif
 	
-	tls_sources = [
+	tls_sources += [
 		'src/base/net/stratum/Tls.cpp',
 		'src/base/net/stratum/Tls.h',
 		'src/base/net/tls/ServerTls.cpp',
@@ -702,7 +704,7 @@ foreach s : inputs
 endforeach
 
 executable(exe_name,
-	inputs_filtered,
+	windows_rc + inputs_filtered,
 	link_with: xmrig_link_with,
 	link_args: exe_linker_flags,
 	dependencies: xmrig_deps + extra_libs,

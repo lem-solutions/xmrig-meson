@@ -1,0 +1,11 @@
+--- a/meson.build
++++ b/meson.build
+@@ -14,7 +14,7 @@
+ cc_msvc = cc.get_argument_syntax() == 'msvc'
+ 
+ # get system type
+-win32 = host_machine.system() == 'windows'
++win32 = host_machine.system() == 'windows' or host_machine.system() == 'cygwin'
+ gnu = host_machine.system() == 'gnu'
+ linux = host_machine.system() == 'linux'
+ android = host_machine.system() == 'android'
